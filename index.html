@@ -308,7 +308,7 @@
 <div class="truck-panel" id="truckPanel">
   <h4>🚛 陆运卡车衔接参考</h4>
   <div class="truck-grid" id="truckGrid"></div>
-  <div class="truck-legend">* 陆运距离=大圆航线×1.45路况系数；时效按62km/h平均车速+阶梯缓冲（驾驶休息+装卸+通关），含EU司机强制休息规则</div>
+  <div class="truck-legend">* 国内模型：路距=大圆×1.38，时速68km/h（含休息/堵车/检查站），无边境缓冲；欧洲模型：路距×1.45，时速62km/h，含EU强制休息/装卸/通关。标注⭐为物流商实测数据。</div>
 </div>
 
 <div class="main">
@@ -1023,6 +1023,19 @@ const truckCorridors = [
   {airport:"NGB", near:"舟山港", dist:90, time:"1.5h"}, {airport:"NGB", near:"杭州", dist:170, time:"2.5h"},
   {airport:"HGH", near:"义乌", dist:140, time:"2h"}, {airport:"HGH", near:"宁波", dist:170, time:"2.5h"},
   {airport:"CGO", near:"郑州经开区", dist:30, time:"40min"},
+  // China long-distance truck corridors (real transit times from logistics providers)
+  {airport:"SZX", near:"乌鲁木齐/URC全境", dist:4500, time:"40h"},
+  {airport:"URC", near:"深圳/广州/SZX全境", dist:4500, time:"40h"},
+  {airport:"PVG", near:"乌鲁木齐/URC全境", dist:4200, time:"38h"},
+  {airport:"URC", near:"上海/PVG全境", dist:4200, time:"38h"},
+  {airport:"CAN", near:"乌鲁木齐/URC全境", dist:4800, time:"42h"},
+  {airport:"URC", near:"广州/CAN全境", dist:4800, time:"42h"},
+  {airport:"PEK", near:"深圳/SZX全境", dist:2400, time:"22h"},
+  {airport:"SZX", near:"北京/PEK全境", dist:2400, time:"22h"},
+  {airport:"PVG", near:"深圳/SZX全境", dist:1800, time:"16h"},
+  {airport:"SZX", near:"上海/PVG全境", dist:1800, time:"16h"},
+  {airport:"CKG", near:"深圳/SZX全境", dist:1700, time:"15h"},
+  {airport:"SZX", near:"重庆/CKG全境", dist:1700, time:"15h"},
   
   // Europe hub-to-hub truck corridors (real transit times)
   {airport:"PRG", near:"华沙/WAW", dist:640, time:"18h"},
@@ -1094,32 +1107,56 @@ function showTruckInfo() {
   });
   
   // Estimated truck transit time between the two airports
-  // Model: road distance = great-circle × 1.45 (European road factor)
-  // Real truck average speed ~62 km/h (EU driver limits 90km/h max, 4.5h continuous + 45min break)
-  // Buffer by distance band (loading, customs, mandatory rest):
-  //   <200km: +2h, 200-500km: +4h, 500-800km: +9h, 800-1500km: +12h, >1500km: +24h
+  // Model differs by region:
+  //   China: road factor 1.38, avg 68km/h (含休息/堵车/检查站), 国内无边境缓冲
+  //   Europe: road factor 1.45, avg 62km/h, +阶梯缓冲 (EU强制休息/装卸/通关)
+  //   Cross-region: use the slower (EU) model
   if (routeOrigin && routeDest) {
     const airDist = haversine(routeOrigin.lat, routeOrigin.lon, routeDest.lat, routeDest.lon);
-    const roadDist = Math.round(airDist * 1.45);
+    const isCN = routeOrigin.region === 'CN' && routeDest.region === 'CN';
+    const isEU = routeOrigin.region === 'EU' && routeDest.region === 'EU';
+
+    let roadDist, totalH, modelLabel;
     
-    // Time calculation with tiered buffer
-    let bufferH = 2; // minimum loading/unloading
-    if (roadDist > 1500) bufferH = 24;
-    else if (roadDist > 800) bufferH = 12;
-    else if (roadDist > 500) bufferH = 9;
-    else if (roadDist > 200) bufferH = 4;
-    else bufferH = 2;
-    
-    const driveH = roadDist / 62;  // EU truck avg speed with breaks
-    const totalH = Math.round(driveH + bufferH);
+    if (isCN) {
+      // China model: road factor 1.38, speed 68km/h, NO tiered buffer (no border/customs within China)
+      roadDist = Math.round(airDist * 1.38);
+      const driveH = roadDist / 68;
+      const bufferH = roadDist > 2000 ? 6 : (roadDist > 500 ? 3 : 1); // only loading/unloading
+      totalH = Math.round(driveH + bufferH);
+      modelLabel = '（国内模型: 路距×1.38, 68km/h, 含装卸）';
+    } else if (isEU) {
+      // Europe model: road factor 1.45, speed 62km/h, + tiered buffer
+      roadDist = Math.round(airDist * 1.45);
+      let bufferH = 2;
+      if (roadDist > 1500) bufferH = 24;
+      else if (roadDist > 800) bufferH = 12;
+      else if (roadDist > 500) bufferH = 9;
+      else if (roadDist > 200) bufferH = 4;
+      const driveH = roadDist / 62;
+      totalH = Math.round(driveH + bufferH);
+      modelLabel = '（欧洲模型: 路距×1.45, 62km/h, 含EU休息/装卸/通关）';
+    } else {
+      // Cross-region: use conservative (EU) model
+      roadDist = Math.round(airDist * 1.45);
+      let bufferH = 2;
+      if (roadDist > 1500) bufferH = 24;
+      else if (roadDist > 800) bufferH = 12;
+      else if (roadDist > 500) bufferH = 9;
+      else if (roadDist > 200) bufferH = 4;
+      const driveH = roadDist / 62;
+      totalH = Math.round(driveH + bufferH);
+      modelLabel = '（跨境模型: 路距×1.45, 62km/h, 含通关缓冲）';
+    }
+
     const totalDays = totalH >= 24 ? Math.floor(totalH / 24) : 0;
     const remH = totalH % 24;
-    const timeLabel = totalDays > 0 
+    const timeLabel = totalDays > 0
       ? `${totalDays}天${remH > 0 ? remH + 'h' : ''}`
       : `${totalH}h`;
-    
+
     gridHtml.push(`<div class="truck-card" style="border-left:3px solid #f59e0b;">
-      <div class="route-desc"><strong>${routeOrigin.code}</strong> → 🚛 → <strong>${routeDest.code}</strong><br><span>陆运全程估算（含休息/装卸缓冲）</span></div>
+      <div class="route-desc"><strong>${routeOrigin.code}</strong> → 🚛 → <strong>${routeDest.code}</strong><br><span>陆运全程估算${modelLabel}</span></div>
       <div class="truck-metrics"><div class="dist">≈${roadDist} km</div><div class="time">在途 ${timeLabel}</div></div>
     </div>`);
   }
