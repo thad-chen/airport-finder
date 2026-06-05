@@ -308,7 +308,7 @@
 <div class="truck-panel" id="truckPanel">
   <h4>🚛 陆运卡车衔接参考</h4>
   <div class="truck-grid" id="truckGrid"></div>
-  <div class="truck-legend">* 陆运距离按大圆航线×1.5估算，按80km/h计算时效，仅供参考</div>
+  <div class="truck-legend">* 陆运距离=大圆航线×1.45路况系数；时效按62km/h平均车速+阶梯缓冲（驾驶休息+装卸+通关），含EU司机强制休息规则</div>
 </div>
 
 <div class="main">
@@ -1006,7 +1006,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 
 // ============ ROUTE POINT MANAGEMENT ============
 
-// Major logistics truck corridors: airport → nearby hub cities
+// Major logistics truck corridors: airport → nearby hub cities (real transit times from logistics providers)
 const truckCorridors = [
   // China hubs
   {airport:"PVG", near:"上海港/洋山", dist:60, time:"1h"}, {airport:"PVG", near:"苏州", dist:100, time:"1.5h"},
@@ -1023,7 +1023,25 @@ const truckCorridors = [
   {airport:"NGB", near:"舟山港", dist:90, time:"1.5h"}, {airport:"NGB", near:"杭州", dist:170, time:"2.5h"},
   {airport:"HGH", near:"义乌", dist:140, time:"2h"}, {airport:"HGH", near:"宁波", dist:170, time:"2.5h"},
   {airport:"CGO", near:"郑州经开区", dist:30, time:"40min"},
-  // Europe hubs
+  
+  // Europe hub-to-hub truck corridors (real transit times)
+  {airport:"PRG", near:"华沙/WAW", dist:640, time:"18h"},
+  {airport:"PRG", near:"法兰克福/FRA", dist:520, time:"7h"},
+  {airport:"PRG", near:"维也纳", dist:330, time:"4.5h"},
+  {airport:"PRG", near:"布达佩斯/BUD", dist:530, time:"8h"},
+  {airport:"PRG", near:"布拉迪斯拉发", dist:330, time:"4.5h"},
+  {airport:"PRG", near:"慕尼黑/MUC", dist:380, time:"5h"},
+  {airport:"PRG", near:"柏林", dist:350, time:"4.5h"},
+  {airport:"PRG", near:"莱比锡/LEJ", dist:340, time:"5h"},
+  {airport:"WAW", near:"布拉格/PRG", dist:640, time:"18h"},
+  {airport:"WAW", near:"法兰克福/FRA", dist:1090, time:"22h"},
+  {airport:"WAW", near:"柏林", dist:580, time:"8h"},
+  {airport:"WAW", near:"莱比锡/LEJ", dist:630, time:"10h"},
+  {airport:"WAW", near:"布达佩斯/BUD", dist:860, time:"16h"},
+  {airport:"WAW", near:"维也纳", dist:680, time:"12h"},
+  {airport:"WAW", near:"阿姆斯特丹/AMS", dist:1380, time:"27h"},
+  
+  // Europe local hubs
   {airport:"FRA", near:"法兰克福市区", dist:15, time:"20min"}, {airport:"FRA", near:"科隆", dist:190, time:"2.5h"},
   {airport:"FRA", near:"斯图加特", dist:210, time:"3h"}, {airport:"FRA", near:"慕尼黑", dist:400, time:"5h"},
   {airport:"AMS", near:"鹿特丹港", dist:80, time:"1h"}, {airport:"AMS", near:"安特卫普", dist:160, time:"2h"},
@@ -1031,11 +1049,14 @@ const truckCorridors = [
   {airport:"LGG", near:"布鲁塞尔", dist:95, time:"1.2h"}, {airport:"LGG", near:"安特卫普", dist:120, time:"1.5h"},
   {airport:"LGG", near:"科隆", dist:125, time:"1.5h"}, {airport:"LGG", near:"杜伊斯堡", dist:140, time:"2h"},
   {airport:"BUD", near:"维也纳", dist:250, time:"3h"}, {airport:"BUD", near:"布拉迪斯拉发", dist:200, time:"2.5h"},
-  {airport:"BUD", near:"布达佩斯市区", dist:20, time:"30min"},
+  {airport:"BUD", near:"布达佩斯市区", dist:20, time:"30min"}, {airport:"BUD", near:"布拉格/PRG", dist:530, time:"8h"},
+  {airport:"BUD", near:"华沙/WAW", dist:860, time:"16h"},
   {airport:"WAW", near:"罗兹", dist:130, time:"2h"}, {airport:"WAW", near:"华沙市区", dist:10, time:"20min"},
   {airport:"LEJ", near:"柏林", dist:190, time:"2.5h"}, {airport:"LEJ", near:"德累斯顿", dist:115, time:"1.5h"},
+  {airport:"LEJ", near:"布拉格/PRG", dist:340, time:"5h"},
   {airport:"MUC", near:"慕尼黑市区", dist:35, time:"40min"}, {airport:"MUC", near:"纽伦堡", dist:170, time:"2h"},
   {airport:"LHR", near:"伦敦市区", dist:25, time:"40min"}, {airport:"LHR", near:"伯明翰", dist:170, time:"2h"},
+  
   // Asia/Middle East
   {airport:"DXB", near:"阿布扎比", dist:140, time:"1.5h"}, {airport:"DXB", near:"沙迦", dist:25, time:"30min"},
   {airport:"ICN", near:"仁川港", dist:40, time:"40min"}, {airport:"ICN", near:"首尔", dist:50, time:"1h"},
@@ -1072,14 +1093,34 @@ function showTruckInfo() {
     </div>`);
   });
   
-  // Add estimated truck distance between the two airports (road factor: great-circle × 1.5)
+  // Estimated truck transit time between the two airports
+  // Model: road distance = great-circle × 1.45 (European road factor)
+  // Real truck average speed ~62 km/h (EU driver limits 90km/h max, 4.5h continuous + 45min break)
+  // Buffer by distance band (loading, customs, mandatory rest):
+  //   <200km: +2h, 200-500km: +4h, 500-800km: +9h, 800-1500km: +12h, >1500km: +24h
   if (routeOrigin && routeDest) {
     const airDist = haversine(routeOrigin.lat, routeOrigin.lon, routeDest.lat, routeDest.lon);
-    const roadDist = Math.round(airDist * 1.5);
-    const roadHours = (roadDist / 80).toFixed(1);
+    const roadDist = Math.round(airDist * 1.45);
+    
+    // Time calculation with tiered buffer
+    let bufferH = 2; // minimum loading/unloading
+    if (roadDist > 1500) bufferH = 24;
+    else if (roadDist > 800) bufferH = 12;
+    else if (roadDist > 500) bufferH = 9;
+    else if (roadDist > 200) bufferH = 4;
+    else bufferH = 2;
+    
+    const driveH = roadDist / 62;  // EU truck avg speed with breaks
+    const totalH = Math.round(driveH + bufferH);
+    const totalDays = totalH >= 24 ? Math.floor(totalH / 24) : 0;
+    const remH = totalH % 24;
+    const timeLabel = totalDays > 0 
+      ? `${totalDays}天${remH > 0 ? remH + 'h' : ''}`
+      : `${totalH}h`;
+    
     gridHtml.push(`<div class="truck-card" style="border-left:3px solid #f59e0b;">
-      <div class="route-desc"><strong>${routeOrigin.code}</strong> → 🚛 → <strong>${routeDest.code}</strong><br><span>陆运全程估算</span></div>
-      <div class="truck-metrics"><div class="dist">${roadDist} km</div><div class="time">约 ${roadHours}h</div></div>
+      <div class="route-desc"><strong>${routeOrigin.code}</strong> → 🚛 → <strong>${routeDest.code}</strong><br><span>陆运全程估算（含休息/装卸缓冲）</span></div>
+      <div class="truck-metrics"><div class="dist">≈${roadDist} km</div><div class="time">在途 ${timeLabel}</div></div>
     </div>`);
   }
   
