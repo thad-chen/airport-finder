@@ -72,30 +72,79 @@
   .route-bar {
     background: #fff;
     border-bottom: 1px solid var(--border);
-    padding: 8px 24px;
+    padding: 10px 24px;
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
     font-size: 0.85em;
+    position: relative;
   }
-  .route-bar .label { color: var(--text-secondary); }
-  .route-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: var(--primary-light); color: var(--primary);
-    padding: 4px 12px; border-radius: 50px; font-weight: 600; font-size: 0.9em;
+  .route-bar .label { color: var(--text-secondary); white-space: nowrap; }
+  .route-input-wrap {
+    position: relative; flex: 1; min-width: 140px; max-width: 220px;
   }
-  .route-chip .remove { cursor: pointer; margin-left: 2px; font-size: 1.1em; line-height: 1; color: var(--text-secondary); }
-  .route-chip .remove:hover { color: var(--danger); }
-  .route-arrow { color: var(--text-secondary); font-size: 1.2em; }
+  .route-input-wrap input {
+    width: 100%; padding: 8px 32px 8px 12px; border-radius: 8px;
+    border: 2px solid var(--border); font-size: 0.88em; outline: none; color: var(--text);
+    transition: all 0.2s; background: #fff;
+  }
+  .route-input-wrap input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,86,219,0.1); }
+  .route-input-wrap input::placeholder { color: #94a3b8; font-size: 0.88em; }
+  .route-input-wrap .input-clear {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    cursor: pointer; color: var(--text-secondary); font-size: 0.9em; display: none;
+  }
+  .route-input-wrap .input-clear.visible { display: block; }
+  .route-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 2000;
+    background: #fff; border: 2px solid var(--primary); border-top: none;
+    border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12); display: none;
+  }
+  .route-dropdown.open { display: block; }
+  .route-dropdown-item {
+    padding: 7px 12px; cursor: pointer; font-size: 0.84em;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: background 0.1s;
+  }
+  .route-dropdown-item:hover { background: var(--primary-light); }
+  .route-dropdown-item .code { font-weight: 700; color: var(--primary); min-width: 42px; }
+  .route-dropdown-item .city { color: var(--text-secondary); font-size: 0.85em; }
+  .route-arrow { color: var(--text-secondary); font-size: 1.1em; font-weight: 700; flex-shrink: 0; }
+  .route-swap {
+    cursor: pointer; font-size: 1em; color: var(--text-secondary); flex-shrink: 0;
+    padding: 4px 6px; border-radius: 6px; transition: all 0.2s;
+  }
+  .route-swap:hover { background: var(--primary-light); color: var(--primary); }
   .btn-sm {
-    padding: 4px 14px; border-radius: 50px; font-size: 0.85em; cursor: pointer; border: 1.5px solid var(--border);
-    background: #fff; color: var(--text-secondary); transition: all 0.2s;
+    padding: 6px 16px; border-radius: 50px; font-size: 0.85em; cursor: pointer; border: 1.5px solid var(--border);
+    background: #fff; color: var(--text-secondary); transition: all 0.2s; white-space: nowrap;
   }
   .btn-sm:hover { border-color: var(--primary); color: var(--primary); }
   .btn-sm.clear-btn { border-color: var(--danger); color: var(--danger); font-weight: 600; }
   .btn-sm.clear-btn:hover { background: var(--danger); color: #fff; }
-  .route-info { margin-left: auto; color: var(--primary); font-weight: 600; }
+  .route-info { margin-left: auto; color: var(--primary); font-weight: 600; text-align: right; }
+  
+  /* Truck route panel */
+  .truck-panel {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px;
+    padding: 14px 18px; margin: 0 24px 10px; display: none;
+  }
+  .truck-panel.visible { display: block; animation: fadeIn 0.3s ease-out; }
+  .truck-panel h4 { color: #92400e; font-size: 0.88em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .truck-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .truck-card {
+    background: #fff; border-radius: 8px; padding: 10px 14px;
+    border: 1px solid #fde68a; display: flex; justify-content: space-between; align-items: center;
+  }
+  .truck-card .route-desc { font-size: 0.82em; }
+  .truck-card .route-desc strong { color: var(--text); }
+  .truck-card .route-desc span { color: var(--text-secondary); }
+  .truck-card .truck-metrics { text-align: right; font-size: 0.78em; }
+  .truck-card .truck-metrics .dist { color: var(--primary); font-weight: 700; }
+  .truck-card .truck-metrics .time { color: #92400e; }
+  .truck-legend { font-size: 0.72em; color: #92400e; margin-top: 6px; opacity: 0.7; }
 
   /* Main Layout */
   .main {
@@ -239,12 +288,27 @@
 
 <!-- Route selection bar -->
 <div class="route-bar" id="routeBar">
-  <span class="label">✈ 航线查询</span>
-  <span class="route-chip" id="routeOrigin">起<span style="color:#94a3b8">点击机场设为起点</span></span>
+  <span class="label">✈ 航线</span>
+  <div class="route-input-wrap" id="originWrap">
+    <input type="text" id="routeOriginInput" placeholder="输入起点代码/名称..." autocomplete="off">
+    <span class="input-clear" id="originClear" onclick="clearRoutePoint('origin')">✕</span>
+    <div class="route-dropdown" id="originDropdown"></div>
+  </div>
+  <span class="route-swap" onclick="swapRoute()" title="交换起终点">🔄</span>
   <span class="route-arrow">→</span>
-  <span class="route-chip" id="routeDest">终<span style="color:#94a3b8">点击机场设为终点</span></span>
-  <button class="btn-sm clear-btn" onclick="clearRoute()" title="清除航线（也可点击起点机场再次取消）">✕ 清除航线</button>
+  <div class="route-input-wrap" id="destWrap">
+    <input type="text" id="routeDestInput" placeholder="输入终点代码/名称..." autocomplete="off">
+    <span class="input-clear" id="destClear" onclick="clearRoutePoint('dest')">✕</span>
+    <div class="route-dropdown" id="destDropdown"></div>
+  </div>
+  <button class="btn-sm clear-btn" onclick="clearRoute()">✕ 清除</button>
   <span class="route-info" id="routeDistance"></span>
+</div>
+<!-- Truck route info panel -->
+<div class="truck-panel" id="truckPanel">
+  <h4>🚛 陆运卡车衔接参考</h4>
+  <div class="truck-grid" id="truckGrid"></div>
+  <div class="truck-legend">* 陆运距离按大圆航线×1.5估算，按80km/h计算时效，仅供参考</div>
 </div>
 
 <div class="main">
@@ -282,13 +346,13 @@
   <section class="right-panel">
     <div class="map-container">
       <div id="map"></div>
-      <div class="map-hint" id="mapHint">💡 点击机场列表可查看详情 | 可点击「设为起点/终点」绘制航线</div>
+      <div class="map-hint" id="mapHint">💡 输入机场代码查询 | 航线栏可直接输入或点列表的「航线」按钮 | 自动显示卡车陆运衔接</div>
     </div>
 
     <div class="detail-card" id="detailCard">
       <div class="detail-empty">
         <div class="icon">📍</div>
-        <div>点击左侧列表中的机场查看详细信息<br><small style="color:#94a3b8">也可点击「设为起点」和「设为终点」绘制航线连线和距离</small></div>
+        <div>点击左侧列表中的机场查看详细信息<br><small style="color:#94a3b8">航线栏直接输入代码，或点击「航线」按钮，自动计算空运+陆运时效</small></div>
       </div>
     </div>
   </section>
@@ -941,6 +1005,222 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // ============ ROUTE POINT MANAGEMENT ============
+
+// Major logistics truck corridors: airport → nearby hub cities
+const truckCorridors = [
+  // China hubs
+  {airport:"PVG", near:"上海港/洋山", dist:60, time:"1h"}, {airport:"PVG", near:"苏州", dist:100, time:"1.5h"},
+  {airport:"PVG", near:"杭州", dist:200, time:"3h"}, {airport:"PVG", near:"南京", dist:300, time:"4h"},
+  {airport:"URC", near:"霍尔果斯口岸", dist:670, time:"8h"}, {airport:"URC", near:"阿拉山口", dist:480, time:"6h"},
+  {airport:"URC", near:"喀什", dist:1500, time:"18h"}, {airport:"URC", near:"乌鲁木齐市区", dist:20, time:"30min"},
+  {airport:"CAN", near:"深圳", dist:130, time:"2h"}, {airport:"CAN", near:"东莞", dist:60, time:"1h"},
+  {airport:"CAN", near:"香港", dist:180, time:"3h"}, {airport:"SZR", near:"上海", dist:100, time:"1.5h"},
+  {airport:"SZX", near:"香港", dist:40, time:"45min"}, {airport:"SZX", near:"广州", dist:130, time:"2h"},
+  {airport:"PEK", near:"天津", dist:140, time:"2h"}, {airport:"PEK", near:"石家庄", dist:280, time:"3.5h"},
+  {airport:"CKG", near:"成都", dist:310, time:"4h"}, {airport:"CKG", near:"重庆市区", dist:20, time:"30min"},
+  {airport:"TSN", near:"北京", dist:140, time:"2h"}, {airport:"TSN", near:"天津港", dist:50, time:"1h"},
+  {airport:"XMN", near:"泉州", dist:90, time:"1.5h"}, {airport:"XMN", near:"福州", dist:260, time:"3.5h"},
+  {airport:"NGB", near:"舟山港", dist:90, time:"1.5h"}, {airport:"NGB", near:"杭州", dist:170, time:"2.5h"},
+  {airport:"HGH", near:"义乌", dist:140, time:"2h"}, {airport:"HGH", near:"宁波", dist:170, time:"2.5h"},
+  {airport:"CGO", near:"郑州经开区", dist:30, time:"40min"},
+  // Europe hubs
+  {airport:"FRA", near:"法兰克福市区", dist:15, time:"20min"}, {airport:"FRA", near:"科隆", dist:190, time:"2.5h"},
+  {airport:"FRA", near:"斯图加特", dist:210, time:"3h"}, {airport:"FRA", near:"慕尼黑", dist:400, time:"5h"},
+  {airport:"AMS", near:"鹿特丹港", dist:80, time:"1h"}, {airport:"AMS", near:"安特卫普", dist:160, time:"2h"},
+  {airport:"AMS", near:"杜伊斯堡", dist:230, time:"3h"}, {airport:"AMS", near:"布鲁塞尔", dist:210, time:"2.5h"},
+  {airport:"LGG", near:"布鲁塞尔", dist:95, time:"1.2h"}, {airport:"LGG", near:"安特卫普", dist:120, time:"1.5h"},
+  {airport:"LGG", near:"科隆", dist:125, time:"1.5h"}, {airport:"LGG", near:"杜伊斯堡", dist:140, time:"2h"},
+  {airport:"BUD", near:"维也纳", dist:250, time:"3h"}, {airport:"BUD", near:"布拉迪斯拉发", dist:200, time:"2.5h"},
+  {airport:"BUD", near:"布达佩斯市区", dist:20, time:"30min"},
+  {airport:"WAW", near:"罗兹", dist:130, time:"2h"}, {airport:"WAW", near:"华沙市区", dist:10, time:"20min"},
+  {airport:"LEJ", near:"柏林", dist:190, time:"2.5h"}, {airport:"LEJ", near:"德累斯顿", dist:115, time:"1.5h"},
+  {airport:"MUC", near:"慕尼黑市区", dist:35, time:"40min"}, {airport:"MUC", near:"纽伦堡", dist:170, time:"2h"},
+  {airport:"LHR", near:"伦敦市区", dist:25, time:"40min"}, {airport:"LHR", near:"伯明翰", dist:170, time:"2h"},
+  // Asia/Middle East
+  {airport:"DXB", near:"阿布扎比", dist:140, time:"1.5h"}, {airport:"DXB", near:"沙迦", dist:25, time:"30min"},
+  {airport:"ICN", near:"仁川港", dist:40, time:"40min"}, {airport:"ICN", near:"首尔", dist:50, time:"1h"},
+  {airport:"BKK", near:"林查班港", dist:110, time:"1.5h"}, {airport:"ALA", near:"霍尔果斯口岸", dist:320, time:"4h"},
+];
+
+function getTruckRoutes(airport) {
+  return truckCorridors.filter(t => t.airport === airport.code);
+}
+
+function showTruckInfo() {
+  const panel = document.getElementById('truckPanel');
+  const grid = document.getElementById('truckGrid');
+  
+  if (!routeOrigin || !routeDest) { panel.classList.remove('visible'); return; }
+  
+  const gridHtml = [];
+  
+  // Truck routes from origin
+  const originTrucks = getTruckRoutes(routeOrigin);
+  originTrucks.forEach(t => {
+    gridHtml.push(`<div class="truck-card">
+      <div class="route-desc"><strong>${routeOrigin.code} 🛫</strong> → 🚛 <span>${t.near}</span></div>
+      <div class="truck-metrics"><div class="dist">${t.dist} km</div><div class="time">约 ${t.time}</div></div>
+    </div>`);
+  });
+  
+  // Truck routes from dest
+  const destTrucks = getTruckRoutes(routeDest);
+  destTrucks.forEach(t => {
+    gridHtml.push(`<div class="truck-card">
+      <div class="route-desc"><strong>${routeDest.code} 🛬</strong> → 🚛 <span>${t.near}</span></div>
+      <div class="truck-metrics"><div class="dist">${t.dist} km</div><div class="time">约 ${t.time}</div></div>
+    </div>`);
+  });
+  
+  // Add estimated truck distance between the two airports (road factor: great-circle × 1.5)
+  if (routeOrigin && routeDest) {
+    const airDist = haversine(routeOrigin.lat, routeOrigin.lon, routeDest.lat, routeDest.lon);
+    const roadDist = Math.round(airDist * 1.5);
+    const roadHours = (roadDist / 80).toFixed(1);
+    gridHtml.push(`<div class="truck-card" style="border-left:3px solid #f59e0b;">
+      <div class="route-desc"><strong>${routeOrigin.code}</strong> → 🚛 → <strong>${routeDest.code}</strong><br><span>陆运全程估算</span></div>
+      <div class="truck-metrics"><div class="dist">${roadDist} km</div><div class="time">约 ${roadHours}h</div></div>
+    </div>`);
+  }
+  
+  grid.innerHTML = gridHtml.join('');
+  panel.classList.toggle('visible', gridHtml.length > 0);
+}
+
+// Direct input autocomplete
+function setupRouteAutocomplete() {
+  const originInput = document.getElementById('routeOriginInput');
+  const destInput = document.getElementById('routeDestInput');
+  const originDropdown = document.getElementById('originDropdown');
+  const destDropdown = document.getElementById('destDropdown');
+  const originClear = document.getElementById('originClear');
+  const destClear = document.getElementById('destClear');
+
+  function searchAirports(query) {
+    if (!query || query.length < 1) return [];
+    const q = query.toUpperCase();
+    return airportsClean.filter(a => 
+      a.code.toUpperCase().includes(q) || 
+      a.icao.toUpperCase().includes(q) ||
+      a.name.includes(query) || 
+      a.nameEn.toUpperCase().includes(q) ||
+      a.city.includes(query) || 
+      a.cityEn.toUpperCase().includes(q) ||
+      a.country.includes(query)
+    ).slice(0, 15);
+  }
+
+  function renderDropdown(dropdown, results, inputEl, isOrigin) {
+    dropdown.innerHTML = '';
+    if (results.length === 0) {
+      dropdown.classList.remove('open');
+      return;
+    }
+    results.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'route-dropdown-item';
+      div.innerHTML = `<span><span class="code">${a.code}</span> ${a.city}, ${a.country}</span><span class="city">${a.icao}</span>`;
+      div.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Prevent blur from firing before click
+        if (isOrigin) {
+          routeOrigin = a;
+          originInput.value = a.code + ' — ' + a.city + ', ' + a.country;
+          document.getElementById('originClear').classList.add('visible');
+        } else {
+          routeDest = a;
+          destInput.value = a.code + ' — ' + a.city + ', ' + a.country;
+          document.getElementById('destClear').classList.add('visible');
+        }
+        dropdown.classList.remove('open');
+        if (routeOrigin && routeDest && routeOrigin.code === routeDest.code) {
+          // Can't route to same airport
+          routeDest = null;
+          destInput.value = '';
+          document.getElementById('destClear').classList.remove('visible');
+          document.getElementById('routeDistance').textContent = '⚠ 起终点不能相同';
+          return;
+        }
+        drawRouteLine();
+        showTruckInfo();
+        renderList();
+      });
+      dropdown.appendChild(div);
+    });
+    dropdown.classList.add('open');
+  }
+
+  originInput.addEventListener('input', function() {
+    const val = this.value.trim();
+    routeOrigin = null;
+    document.getElementById('originClear').classList.remove('visible');
+    const results = searchAirports(val);
+    renderDropdown(originDropdown, results, originInput, true);
+  });
+
+  destInput.addEventListener('input', function() {
+    const val = this.value.trim();
+    routeDest = null;
+    document.getElementById('destClear').classList.remove('visible');
+    const results = searchAirports(val);
+    renderDropdown(destDropdown, results, destInput, false);
+  });
+
+  originInput.addEventListener('focus', function() {
+    const val = this.value.trim();
+    if (val) {
+      const results = searchAirports(val);
+      renderDropdown(originDropdown, results, originInput, true);
+    }
+  });
+
+  destInput.addEventListener('focus', function() {
+    const val = this.value.trim();
+    if (val) {
+      const results = searchAirports(val);
+      renderDropdown(destDropdown, results, destInput, false);
+    }
+  });
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#originWrap')) { originDropdown.classList.remove('open'); }
+    if (!e.target.closest('#destWrap')) { destDropdown.classList.remove('open'); }
+  });
+
+  // Keyboard navigation
+  [originInput, destInput].forEach((input, idx) => {
+    const dropdown = idx === 0 ? originDropdown : destDropdown;
+    const isOrigin = idx === 0;
+    input.addEventListener('keydown', function(e) {
+      const items = dropdown.querySelectorAll('.route-dropdown-item');
+      if (!items.length) return;
+      let activeIdx = -1;
+      items.forEach((item, i) => { if (item.classList.contains('hover')) activeIdx = i; });
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        items.forEach(i => i.classList.remove('hover'));
+        const next = Math.min(activeIdx + 1, items.length - 1);
+        items[next].classList.add('hover');
+        items[next].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        items.forEach(i => i.classList.remove('hover'));
+        const prev = Math.max(activeIdx - 1, 0);
+        items[prev].classList.add('hover');
+        items[prev].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const hoverItem = dropdown.querySelector('.route-dropdown-item.hover');
+        if (hoverItem) hoverItem.click();
+      } else if (e.key === 'Escape') {
+        dropdown.classList.remove('open');
+      }
+    });
+  });
+}
+
+// Legacy click-from-list support (kept for backward compat)
 function setRoutePoint(code) {
   const airport = airportsClean.find(a => a.code === code);
   if (!airport) return;
@@ -948,34 +1228,85 @@ function setRoutePoint(code) {
   if (!routeOrigin) {
     routeOrigin = airport;
     routeDest = null;
-    document.getElementById('routeOrigin').innerHTML = '🛫 ' + airport.code + ' <small style="color:#475569">' + airport.city + '</small> <span class="remove" onclick="event.stopPropagation();clearRoute()" title="清除航线">✕</span>';
-    document.getElementById('routeDest').innerHTML = '终<span style="color:#94a3b8">点击机场的「航线」按钮</span>';
+    document.getElementById('routeOriginInput').value = airport.code + ' — ' + airport.city + ', ' + airport.country;
+    document.getElementById('originClear').classList.add('visible');
+    document.getElementById('routeDestInput').value = '';
+    document.getElementById('destClear').classList.remove('visible');
     document.getElementById('routeDistance').textContent = '';
     selectAirport(code);
     drawRouteLine();
+    showTruckInfo();
   } else if (!routeDest && routeOrigin.code !== airport.code) {
     routeDest = airport;
-    document.getElementById('routeDest').innerHTML = '📍 ' + airport.code + ' <small style="color:#475569">' + airport.city + '</small> <span class="remove" onclick="event.stopPropagation();clearRoute()" title="清除航线">✕</span>';
+    document.getElementById('routeDestInput').value = airport.code + ' — ' + airport.city + ', ' + airport.country;
+    document.getElementById('destClear').classList.add('visible');
     selectAirport(code);
     drawRouteLine();
+    showTruckInfo();
   } else if (routeOrigin.code === airport.code) {
-    // Re-clicking origin: clear
     clearRoute();
   } else {
-    // Already have both — reset with new origin
     routeOrigin = airport;
     routeDest = null;
-    document.getElementById('routeOrigin').innerHTML = '🛫 ' + airport.code + ' <small style="color:#475569">' + airport.city + '</small> <span class="remove" onclick="event.stopPropagation();clearRoute()" title="清除航线">✕</span>';
-    document.getElementById('routeDest').innerHTML = '终<span style="color:#94a3b8">点击机场的「航线」按钮</span>';
+    document.getElementById('routeOriginInput').value = airport.code + ' — ' + airport.city + ', ' + airport.country;
+    document.getElementById('originClear').classList.add('visible');
+    document.getElementById('routeDestInput').value = '';
+    document.getElementById('destClear').classList.remove('visible');
     document.getElementById('routeDistance').textContent = '';
     selectAirport(code);
     drawRouteLine();
+    showTruckInfo();
   }
 
-  // Hide map hint once user has drawn a route
   if (routeOrigin && routeDest) {
     document.getElementById('mapHint').style.display = 'none';
   }
+}
+
+function clearRoutePoint(type) {
+  if (type === 'origin') {
+    routeOrigin = null;
+    document.getElementById('routeOriginInput').value = '';
+    document.getElementById('originClear').classList.remove('visible');
+  } else {
+    routeDest = null;
+    document.getElementById('routeDestInput').value = '';
+    document.getElementById('destClear').classList.remove('visible');
+  }
+  document.getElementById('routeDistance').textContent = '';
+  if (window.__routeAnimInterval) { clearInterval(window.__routeAnimInterval); window.__routeAnimInterval = null; }
+  if (routeLineGroup) routeLineGroup.clearLayers();
+  if (originMarker) { map.removeLayer(originMarker); originMarker = null; }
+  if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+  document.getElementById('truckPanel').classList.remove('visible');
+  drawRouteLine();
+  updateMapMarkers();
+  renderList();
+  document.getElementById('mapHint').style.display = 'block';
+}
+
+function swapRoute() {
+  if (!routeOrigin) return;
+  const temp = routeOrigin;
+  routeOrigin = routeDest;
+  routeDest = temp;
+  
+  if (routeOrigin) {
+    document.getElementById('routeOriginInput').value = routeOrigin.code + ' — ' + routeOrigin.city + ', ' + routeOrigin.country;
+    document.getElementById('originClear').classList.add('visible');
+  } else {
+    document.getElementById('routeOriginInput').value = '';
+    document.getElementById('originClear').classList.remove('visible');
+  }
+  if (routeDest) {
+    document.getElementById('routeDestInput').value = routeDest.code + ' — ' + routeDest.city + ', ' + routeDest.country;
+    document.getElementById('destClear').classList.add('visible');
+  } else {
+    document.getElementById('routeDestInput').value = '';
+    document.getElementById('destClear').classList.remove('visible');
+  }
+  drawRouteLine();
+  showTruckInfo();
 }
 
 function clearRoute() {
@@ -985,10 +1316,15 @@ function clearRoute() {
   if (routeLineGroup) routeLineGroup.clearLayers();
   if (originMarker) { map.removeLayer(originMarker); originMarker = null; }
   if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
-  document.getElementById('routeOrigin').innerHTML = '起<span style="color:#94a3b8">点击机场设为起点</span>';
-  document.getElementById('routeDest').innerHTML = '终<span style="color:#94a3b8">点击机场设为终点</span>';
+  document.getElementById('routeOriginInput').value = '';
+  document.getElementById('originClear').classList.remove('visible');
+  document.getElementById('routeDestInput').value = '';
+  document.getElementById('destClear').classList.remove('visible');
   document.getElementById('routeDistance').textContent = '';
+  document.getElementById('truckPanel').classList.remove('visible');
   document.getElementById('mapHint').style.display = 'block';
+  document.getElementById('originDropdown').classList.remove('open');
+  document.getElementById('destDropdown').classList.remove('open');
   updateMapMarkers();
   renderList();
 }
@@ -1033,6 +1369,7 @@ document.getElementById('regionTags').addEventListener('click', function(e) {
 document.addEventListener('DOMContentLoaded', function() {
   renderList();
   initMap();
+  setupRouteAutocomplete();
   setTimeout(() => {
     if (map) {
       map.invalidateSize();
