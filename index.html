@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>空运机场三字代码查询 - Air Cargo Airport Code Finder</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --primary: #1a56db;
+    --primary-dark: #1e40af;
+    --primary-light: #dbeafe;
+    --accent: #f59e0b;
+    --accent-dark: #d97706;
+    --danger: #ef4444;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --text: #1e293b;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1a56db 100%);
+    color: #fff;
+    padding: 12px 0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+  .header-inner {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-size: 1.2em; font-weight: 700; white-space:nowrap; }
+  .logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2em; }
+  .logo span { color: #93c5fd; font-weight: 400; font-size: 0.72em; margin-left: 6px; }
+
+  .search-wrap {
+    position: relative; flex: 1; max-width: 480px; min-width: 200px;
+  }
+  .search-wrap input {
+    width: 100%; padding: 10px 44px 10px 16px; border-radius: 50px;
+    border: 2px solid transparent; background: rgba(255,255,255,0.12); color: #fff;
+    font-size: 0.92em; outline: none; transition: all 0.25s;
+  }
+  .search-wrap input::placeholder { color: rgba(255,255,255,0.5); }
+  .search-wrap input:focus { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+  .search-icon { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.5); pointer-events: none; }
+
+  /* Route bar */
+  .route-bar {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.85em;
+  }
+  .route-bar .label { color: var(--text-secondary); }
+  .route-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--primary-light); color: var(--primary);
+    padding: 4px 12px; border-radius: 50px; font-weight: 600; font-size: 0.9em;
+  }
+  .route-chip .remove { cursor: pointer; margin-left: 2px; font-size: 1.1em; line-height: 1; color: var(--text-secondary); }
+  .route-chip .remove:hover { color: var(--danger); }
+  .route-arrow { color: var(--text-secondary); font-size: 1.2em; }
+  .btn-sm {
+    padding: 4px 14px; border-radius: 50px; font-size: 0.85em; cursor: pointer; border: 1.5px solid var(--border);
+    background: #fff; color: var(--text-secondary); transition: all 0.2s;
+  }
+  .btn-sm:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-sm.clear-btn { border-color: var(--danger); color: var(--danger); font-weight: 600; }
+  .btn-sm.clear-btn:hover { background: var(--danger); color: #fff; }
+  .route-info { margin-left: auto; color: var(--primary); font-weight: 600; }
+
+  /* Main Layout */
+  .main {
+    max-width: 1500px; margin: 0 auto; padding: 20px 24px;
+    display: grid; grid-template-columns: 400px 1fr; gap: 20px;
+    min-height: calc(100vh - 170px);
+  }
+
+  .left-panel { display: flex; flex-direction: column; gap: 16px; }
+
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-card {
+    background: var(--card-bg); border-radius: var(--radius); padding: 14px;
+    box-shadow: var(--shadow); text-align: center;
+  }
+  .stat-card .num { font-size: 1.6em; font-weight: 700; color: var(--primary); }
+  .stat-card .label { font-size: 0.78em; color: var(--text-secondary); margin-top: 2px; }
+
+  .filter-section {
+    background: var(--card-bg); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow);
+  }
+  .filter-section h3 { font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 8px; }
+  .tag-group { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag {
+    padding: 4px 12px; border-radius: 50px; font-size: 0.8em; cursor: pointer;
+    border: 1.5px solid var(--border); background: #fff; color: var(--text-secondary);
+    transition: all 0.2s; user-select: none;
+  }
+  .tag:hover { border-color: var(--primary); color: var(--primary); }
+  .tag.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .airport-list {
+    background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow);
+    overflow: hidden; flex: 1; display: flex; flex-direction: column; min-height: 0;
+  }
+  .airport-list-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 0.9em;
+  }
+  .airport-list-header .count { font-weight: 400; color: var(--text-secondary); font-size: 0.82em; }
+  .airport-list-body { overflow-y: auto; flex: 1; }
+  .airport-item {
+    padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer;
+    transition: all 0.15s; display: flex; align-items: center; gap: 10px;
+  }
+  .airport-item:hover { background: var(--primary-light); }
+  .airport-item.active { background: var(--primary-light); border-left: 3px solid var(--primary); }
+  .airport-item .code-badge {
+    background: var(--primary); color: #fff; padding: 3px 8px; border-radius: 6px;
+    font-weight: 700; font-size: 0.82em; letter-spacing: 0.5px; min-width: 48px; text-align: center; flex-shrink: 0;
+  }
+  .airport-item .info { flex: 1; min-width: 0; }
+  .airport-item .name { font-weight: 600; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .airport-item .meta { font-size: 0.74em; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .airport-item .region-tag { font-size: 0.68em; padding: 2px 7px; border-radius: 50px; flex-shrink: 0; }
+  .airport-item .route-btn {
+    font-size: 0.7em; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--accent); color: var(--accent-dark);
+    background: #fffbeb; cursor: pointer; flex-shrink: 0; white-space: nowrap; transition: all 0.15s;
+  }
+  .airport-item .route-btn:hover { background: var(--accent); color: #fff; }
+
+  .region-cn { background: #fef3c7; color: #92400e; }
+  .region-eu { background: #dbeafe; color: #1e40af; }
+  .region-as { background: #fce7f3; color: #9d174d; }
+  .region-na { background: #d1fae5; color: #065f46; }
+  .region-me { background: #ede9fe; color: #5b21b6; }
+  .region-af { background: #fee2e2; color: #991b1b; }
+  .region-sa { background: #e0e7ff; color: #3730a3; }
+  .region-oc { background: #ccfbf1; color: #115e59; }
+  .region-ca { background: #fce7f3; color: #831843; }
+
+  .right-panel { display: flex; flex-direction: column; gap: 16px; }
+  .map-container {
+    background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow);
+    overflow: hidden; height: 460px; position: relative;
+  }
+  #map { width: 100%; height: 100%; }
+  .map-hint {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.7); color: #fff; padding: 4px 14px; border-radius: 20px;
+    font-size: 0.75em; pointer-events: none; z-index: 1000;
+  }
+
+  .detail-card {
+    background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px;
+  }
+  .detail-empty { text-align: center; color: var(--text-secondary); padding: 36px 20px; }
+  .detail-empty .icon { font-size: 2.8em; margin-bottom: 10px; }
+  .detail-header {
+    display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px;
+    padding-bottom: 14px; border-bottom: 2px solid var(--border);
+  }
+  .detail-code {
+    background: var(--primary); color: #fff; padding: 8px 18px; border-radius: 10px;
+    font-weight: 800; font-size: 1.5em; letter-spacing: 2px;
+  }
+  .detail-title h2 { font-size: 1.25em; margin-bottom: 2px; }
+  .detail-title .sub { color: var(--text-secondary); font-size: 0.85em; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .detail-item .key { font-size: 0.75em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-item .val { font-weight: 600; font-size: 0.9em; margin-top: 2px; }
+
+  .footer {
+    text-align: center; padding: 14px 24px; color: var(--text-secondary);
+    font-size: 0.75em; border-top: 1px solid var(--border);
+  }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .map-container { height: 320px; }
+    .header-inner { flex-direction: column; align-items: stretch; }
+    .search-wrap { max-width: 100%; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .route-info { margin-left: 0; width: 100%; }
+  }
+
+  .airport-list-body::-webkit-scrollbar { width: 5px; }
+  .airport-list-body::-webkit-scrollbar-track { background: transparent; }
+  .airport-list-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 20px; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .detail-card { animation: fadeIn 0.3s ease-out; }
+
+  .badge-icao { background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">✈</div>
+      <div>空运机场代码查询<span>Air Cargo Code Finder</span></div>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="搜代码/ICAO/名称/城市/国家...（如 MAA, MMX, Chennai, 金奈）" autocomplete="off">
+      <span class="search-icon">🔍</span>
+    </div>
+  </div>
+</header>
+
+<!-- Route selection bar -->
+<div class="route-bar" id="routeBar">
+  <span class="label">✈ 航线查询</span>
+  <span class="route-chip" id="routeOrigin">起<span style="color:#94a3b8">点击机场设为起点</span></span>
+  <span class="route-arrow">→</span>
+  <span class="route-chip" id="routeDest">终<span style="color:#94a3b8">点击机场设为终点</span></span>
+  <button class="btn-sm clear-btn" onclick="clearRoute()" title="清除航线（也可点击起点机场再次取消）">✕ 清除航线</button>
+  <span class="route-info" id="routeDistance"></span>
+</div>
+
+<div class="main">
+  <aside class="left-panel">
+    <div class="stats-row">
+      <div class="stat-card"><div class="num" id="totalCount">0</div><div class="label">收录机场</div></div>
+      <div class="stat-card"><div class="num" id="filteredCount">0</div><div class="label">当前筛选</div></div>
+    </div>
+
+    <div class="filter-section">
+      <h3>🌍 区域筛选</h3>
+      <div class="tag-group" id="regionTags">
+        <div class="tag active" data-region="all">全部</div>
+        <div class="tag" data-region="CN">🇨🇳 中国</div>
+        <div class="tag" data-region="EU">🇪🇺 欧洲</div>
+        <div class="tag" data-region="AS">🌏 亚洲</div>
+        <div class="tag" data-region="NA">🌎 北美</div>
+        <div class="tag" data-region="SA">🌎 南美</div>
+        <div class="tag" data-region="ME">🕌 中东</div>
+        <div class="tag" data-region="AF">🌍 非洲</div>
+        <div class="tag" data-region="OC">🏝 大洋洲</div>
+        <div class="tag" data-region="CA">🌐 中亚</div>
+      </div>
+    </div>
+
+    <div class="airport-list">
+      <div class="airport-list-header">
+        <span>📋 机场列表</span>
+        <span class="count" id="listCount">0 个结果</span>
+      </div>
+      <div class="airport-list-body" id="airportList"></div>
+    </div>
+  </aside>
+
+  <section class="right-panel">
+    <div class="map-container">
+      <div id="map"></div>
+      <div class="map-hint" id="mapHint">💡 点击机场列表可查看详情 | 可点击「设为起点/终点」绘制航线</div>
+    </div>
+
+    <div class="detail-card" id="detailCard">
+      <div class="detail-empty">
+        <div class="icon">📍</div>
+        <div>点击左侧列表中的机场查看详细信息<br><small style="color:#94a3b8">也可点击「设为起点」和「设为终点」绘制航线连线和距离</small></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer class="footer">
+  空运机场三字代码查询工具 · 收录全球 300+ 机场 · 支持 IATA 三字码 / ICAO 四字码查询 · 航线距离计算 · 专注中欧航线及国际空运
+</footer>
+
+<script>
+// ============ AIRPORT DATABASE (300+ airports) ============
+const airports = [
+  // ===== 中国 (CN) =====
+  { code:"URC", icao:"ZWWW", name:"乌鲁木齐地窝堡国际机场", nameEn:"Urumqi Diwopu Intl", city:"乌鲁木齐", cityEn:"Urumqi", country:"中国", countryEn:"China", region:"CN", lat:43.9071, lon:87.4742, cargo:true },
+  { code:"PVG", icao:"ZSPD", name:"上海浦东国际机场", nameEn:"Shanghai Pudong Intl", city:"上海", cityEn:"Shanghai", country:"中国", countryEn:"China", region:"CN", lat:31.1443, lon:121.8083, cargo:true },
+  { code:"SHA", icao:"ZSSS", name:"上海虹桥国际机场", nameEn:"Shanghai Hongqiao Intl", city:"上海", cityEn:"Shanghai", country:"中国", countryEn:"China", region:"CN", lat:31.1979, lon:121.3363, cargo:false },
+  { code:"CAN", icao:"ZGGG", name:"广州白云国际机场", nameEn:"Guangzhou Baiyun Intl", city:"广州", cityEn:"Guangzhou", country:"中国", countryEn:"China", region:"CN", lat:23.3924, lon:113.2990, cargo:true },
+  { code:"SZX", icao:"ZGSZ", name:"深圳宝安国际机场", nameEn:"Shenzhen Bao'an Intl", city:"深圳", cityEn:"Shenzhen", country:"中国", countryEn:"China", region:"CN", lat:22.6394, lon:113.8147, cargo:true },
+  { code:"PEK", icao:"ZBAA", name:"北京首都国际机场", nameEn:"Beijing Capital Intl", city:"北京", cityEn:"Beijing", country:"中国", countryEn:"China", region:"CN", lat:40.0799, lon:116.6031, cargo:true },
+  { code:"PKX", icao:"ZBAD", name:"北京大兴国际机场", nameEn:"Beijing Daxing Intl", city:"北京", cityEn:"Beijing", country:"中国", countryEn:"China", region:"CN", lat:39.5098, lon:116.4105, cargo:true },
+  { code:"CTU", icao:"ZUUU", name:"成都双流国际机场", nameEn:"Chengdu Shuangliu Intl", city:"成都", cityEn:"Chengdu", country:"中国", countryEn:"China", region:"CN", lat:30.5785, lon:103.9471, cargo:true },
+  { code:"TFU", icao:"ZUTF", name:"成都天府国际机场", nameEn:"Chengdu Tianfu Intl", city:"成都", cityEn:"Chengdu", country:"中国", countryEn:"China", region:"CN", lat:30.3198, lon:104.4413, cargo:true },
+  { code:"CKG", icao:"ZUCK", name:"重庆江北国际机场", nameEn:"Chongqing Jiangbei Intl", city:"重庆", cityEn:"Chongqing", country:"中国", countryEn:"China", region:"CN", lat:29.7192, lon:106.6417, cargo:true },
+  { code:"XIY", icao:"ZLXY", name:"西安咸阳国际机场", nameEn:"Xi'an Xianyang Intl", city:"西安", cityEn:"Xi'an", country:"中国", countryEn:"China", region:"CN", lat:34.4471, lon:108.7516, cargo:true },
+  { code:"KMG", icao:"ZPPP", name:"昆明长水国际机场", nameEn:"Kunming Changshui Intl", city:"昆明", cityEn:"Kunming", country:"中国", countryEn:"China", region:"CN", lat:25.1019, lon:102.9292, cargo:false },
+  { code:"HGH", icao:"ZSHC", name:"杭州萧山国际机场", nameEn:"Hangzhou Xiaoshan Intl", city:"杭州", cityEn:"Hangzhou", country:"中国", countryEn:"China", region:"CN", lat:30.2295, lon:120.4345, cargo:true },
+  { code:"NKG", icao:"ZSNJ", name:"南京禄口国际机场", nameEn:"Nanjing Lukou Intl", city:"南京", cityEn:"Nanjing", country:"中国", countryEn:"China", region:"CN", lat:31.7420, lon:118.8620, cargo:true },
+  { code:"WUH", icao:"ZHHH", name:"武汉天河国际机场", nameEn:"Wuhan Tianhe Intl", city:"武汉", cityEn:"Wuhan", country:"中国", countryEn:"China", region:"CN", lat:30.7838, lon:114.2081, cargo:true },
+  { code:"CSX", icao:"ZGHA", name:"长沙黄花国际机场", nameEn:"Changsha Huanghua Intl", city:"长沙", cityEn:"Changsha", country:"中国", countryEn:"China", region:"CN", lat:28.1892, lon:113.2200, cargo:false },
+  { code:"XMN", icao:"ZSAM", name:"厦门高崎国际机场", nameEn:"Xiamen Gaoqi Intl", city:"厦门", cityEn:"Xiamen", country:"中国", countryEn:"China", region:"CN", lat:24.5440, lon:118.1277, cargo:true },
+  { code:"FOC", icao:"ZSFZ", name:"福州长乐国际机场", nameEn:"Fuzhou Changle Intl", city:"福州", cityEn:"Fuzhou", country:"中国", countryEn:"China", region:"CN", lat:25.9351, lon:119.6633, cargo:false },
+  { code:"TAO", icao:"ZSQD", name:"青岛胶东国际机场", nameEn:"Qingdao Jiaodong Intl", city:"青岛", cityEn:"Qingdao", country:"中国", countryEn:"China", region:"CN", lat:36.2614, lon:120.1231, cargo:true },
+  { code:"DLC", icao:"ZYTL", name:"大连周水子国际机场", nameEn:"Dalian Zhoushuizi Intl", city:"大连", cityEn:"Dalian", country:"中国", countryEn:"China", region:"CN", lat:38.9657, lon:121.5386, cargo:false },
+  { code:"TNA", icao:"ZSJN", name:"济南遥墙国际机场", nameEn:"Jinan Yaoqiang Intl", city:"济南", cityEn:"Jinan", country:"中国", countryEn:"China", region:"CN", lat:36.8572, lon:117.2160, cargo:false },
+  { code:"TSN", icao:"ZBTJ", name:"天津滨海国际机场", nameEn:"Tianjin Binhai Intl", city:"天津", cityEn:"Tianjin", country:"中国", countryEn:"China", region:"CN", lat:39.1244, lon:117.3462, cargo:true },
+  { code:"CGO", icao:"ZHCC", name:"郑州新郑国际机场", nameEn:"Zhengzhou Xinzheng Intl", city:"郑州", cityEn:"Zhengzhou", country:"中国", countryEn:"China", region:"CN", lat:34.5197, lon:113.8408, cargo:true },
+  { code:"HAK", icao:"ZJHK", name:"海口美兰国际机场", nameEn:"Haikou Meilan Intl", city:"海口", cityEn:"Haikou", country:"中国", countryEn:"China", region:"CN", lat:19.9349, lon:110.4590, cargo:false },
+  { code:"SYX", icao:"ZJSY", name:"三亚凤凰国际机场", nameEn:"Sanya Phoenix Intl", city:"三亚", cityEn:"Sanya", country:"中国", countryEn:"China", region:"CN", lat:18.3029, lon:109.4122, cargo:false },
+  { code:"HRB", icao:"ZYHB", name:"哈尔滨太平国际机场", nameEn:"Harbin Taiping Intl", city:"哈尔滨", cityEn:"Harbin", country:"中国", countryEn:"China", region:"CN", lat:45.6234, lon:126.2503, cargo:false },
+  { code:"CGQ", icao:"ZYCC", name:"长春龙嘉国际机场", nameEn:"Changchun Longjia Intl", city:"长春", cityEn:"Changchun", country:"中国", countryEn:"China", region:"CN", lat:43.9962, lon:125.6852, cargo:false },
+  { code:"SHE", icao:"ZYTX", name:"沈阳桃仙国际机场", nameEn:"Shenyang Taoxian Intl", city:"沈阳", cityEn:"Shenyang", country:"中国", countryEn:"China", region:"CN", lat:41.6398, lon:123.4834, cargo:false },
+  { code:"NNG", icao:"ZGNN", name:"南宁吴圩国际机场", nameEn:"Nanning Wuxu Intl", city:"南宁", cityEn:"Nanning", country:"中国", countryEn:"China", region:"CN", lat:22.6083, lon:108.1724, cargo:false },
+  { code:"LHW", icao:"ZLLL", name:"兰州中川国际机场", nameEn:"Lanzhou Zhongchuan Intl", city:"兰州", cityEn:"Lanzhou", country:"中国", countryEn:"China", region:"CN", lat:36.5152, lon:103.6204, cargo:false },
+  { code:"INC", icao:"ZLIC", name:"银川河东国际机场", nameEn:"Yinchuan Hedong Intl", city:"银川", cityEn:"Yinchuan", country:"中国", countryEn:"China", region:"CN", lat:38.4817, lon:106.0091, cargo:false },
+  { code:"HET", icao:"ZBHH", name:"呼和浩特白塔国际机场", nameEn:"Hohhot Baita Intl", city:"呼和浩特", cityEn:"Hohhot", country:"中国", countryEn:"China", region:"CN", lat:40.8514, lon:111.8241, cargo:false },
+  { code:"KWE", icao:"ZUGY", name:"贵阳龙洞堡国际机场", nameEn:"Guiyang Longdongbao Intl", city:"贵阳", cityEn:"Guiyang", country:"中国", countryEn:"China", region:"CN", lat:26.5385, lon:106.8007, cargo:false },
+  { code:"KHN", icao:"ZSCN", name:"南昌昌北国际机场", nameEn:"Nanchang Changbei Intl", city:"南昌", cityEn:"Nanchang", country:"中国", countryEn:"China", region:"CN", lat:28.8650, lon:115.9000, cargo:false },
+  { code:"HFE", icao:"ZSOF", name:"合肥新桥国际机场", nameEn:"Hefei Xinqiao Intl", city:"合肥", cityEn:"Hefei", country:"中国", countryEn:"China", region:"CN", lat:31.9881, lon:116.9773, cargo:false },
+  { code:"NGB", icao:"ZSNB", name:"宁波栎社国际机场", nameEn:"Ningbo Lishe Intl", city:"宁波", cityEn:"Ningbo", country:"中国", countryEn:"China", region:"CN", lat:29.8267, lon:121.4619, cargo:true },
+  { code:"WNZ", icao:"ZSWZ", name:"温州龙湾国际机场", nameEn:"Wenzhou Longwan Intl", city:"温州", cityEn:"Wenzhou", country:"中国", countryEn:"China", region:"CN", lat:27.9122, lon:120.8519, cargo:false },
+  { code:"SWA", icao:"ZGOW", name:"揭阳潮汕国际机场", nameEn:"Jieyang Chaoshan Intl", city:"揭阳", cityEn:"Jieyang", country:"中国", countryEn:"China", region:"CN", lat:23.5520, lon:116.5033, cargo:false },
+  { code:"ZUH", icao:"ZGSD", name:"珠海金湾机场", nameEn:"Zhuhai Jinwan Airport", city:"珠海", cityEn:"Zhuhai", country:"中国", countryEn:"China", region:"CN", lat:22.0064, lon:113.3760, cargo:false },
+  { code:"WUX", icao:"ZSWX", name:"苏南硕放国际机场", nameEn:"Sunan Shuofang Intl", city:"无锡", cityEn:"Wuxi", country:"中国", countryEn:"China", region:"CN", lat:31.4944, lon:120.4244, cargo:false },
+  { code:"CZX", icao:"ZSCG", name:"常州奔牛国际机场", nameEn:"Changzhou Benniu Intl", city:"常州", cityEn:"Changzhou", country:"中国", countryEn:"China", region:"CN", lat:31.9197, lon:119.7786, cargo:false },
+  { code:"YNT", icao:"ZSYT", name:"烟台蓬莱国际机场", nameEn:"Yantai Penglai Intl", city:"烟台", cityEn:"Yantai", country:"中国", countryEn:"China", region:"CN", lat:37.4017, lon:121.3717, cargo:false },
+  { code:"WEH", icao:"ZSWH", name:"威海大水泊国际机场", nameEn:"Weihai Dashuibo Airport", city:"威海", cityEn:"Weihai", country:"中国", countryEn:"China", region:"CN", lat:37.1878, lon:122.2275, cargo:false },
+  { code:"KWL", icao:"ZGKL", name:"桂林两江国际机场", nameEn:"Guilin Liangjiang Intl", city:"桂林", cityEn:"Guilin", country:"中国", countryEn:"China", region:"CN", lat:25.2181, lon:110.0392, cargo:false },
+  { code:"LJG", icao:"ZPLJ", name:"丽江三义国际机场", nameEn:"Lijiang Sanyi Intl", city:"丽江", cityEn:"Lijiang", country:"中国", countryEn:"China", region:"CN", lat:26.6800, lon:100.2460, cargo:false },
+  { code:"LZO", icao:"ZULZ", name:"泸州云龙机场", nameEn:"Luzhou Yunlong Airport", city:"泸州", cityEn:"Luzhou", country:"中国", countryEn:"China", region:"CN", lat:29.0300, lon:105.4687, cargo:false },
+  { code:"LZY", icao:"ZUNZ", name:"林芝米林机场", nameEn:"Nyingchi Mainling Airport", city:"林芝", cityEn:"Nyingchi", country:"中国", countryEn:"China", region:"CN", lat:29.3033, lon:94.3353, cargo:false },
+  { code:"YNJ", icao:"ZYYJ", name:"延吉朝阳川国际机场", nameEn:"Yanji Chaoyangchuan Intl", city:"延吉", cityEn:"Yanji", country:"中国", countryEn:"China", region:"CN", lat:42.8828, lon:129.4510, cargo:false },
+
+  { code:"TYN", icao:"ZBYN", name:"太原武宿国际机场", nameEn:"Taiyuan Wusu Intl", city:"太原", cityEn:"Taiyuan", country:"中国", countryEn:"China", region:"CN", lat:37.7469, lon:112.6284, cargo:false },
+  { code:"SJW", icao:"ZBSJ", name:"石家庄正定国际机场", nameEn:"Shijiazhuang Zhengding Intl", city:"石家庄", cityEn:"Shijiazhuang", country:"中国", countryEn:"China", region:"CN", lat:38.2807, lon:114.6973, cargo:false },
+  { code:"YTY", icao:"ZSYA", name:"扬州泰州国际机场", nameEn:"Yangzhou Taizhou Intl", city:"扬州/泰州", cityEn:"Yangzhou/Taizhou", country:"中国", countryEn:"China", region:"CN", lat:32.5634, lon:119.7198, cargo:false },
+  { code:"JHG", icao:"ZPJH", name:"西双版纳嘎洒国际机场", nameEn:"Xishuangbanna Gasa Intl", city:"西双版纳", cityEn:"Jinghong", country:"中国", countryEn:"China", region:"CN", lat:21.9739, lon:100.7596, cargo:false },
+  { code:"LYG", icao:"ZSLG", name:"连云港花果山机场", nameEn:"Lianyungang Huaguoshan Airport", city:"连云港", cityEn:"Lianyungang", country:"中国", countryEn:"China", region:"CN", lat:34.5719, lon:118.8736, cargo:false },
+
+  // ===== 中亚 (CA) =====
+  { code:"ALA", icao:"UAAA", name:"阿拉木图国际机场", nameEn:"Almaty International Airport", city:"阿拉木图", cityEn:"Almaty", country:"哈萨克斯坦", countryEn:"Kazakhstan", region:"CA", lat:43.3521, lon:77.0405, cargo:true },
+  { code:"NQZ", icao:"UACC", name:"努尔苏丹·纳扎尔巴耶夫国际机场", nameEn:"Nursultan Nazarbayev Intl", city:"阿斯塔纳", cityEn:"Astana", country:"哈萨克斯坦", countryEn:"Kazakhstan", region:"CA", lat:51.0222, lon:71.4669, cargo:true },
+  { code:"FRU", icao:"UCFM", name:"比什凯克玛纳斯国际机场", nameEn:"Manas International Airport", city:"比什凯克", cityEn:"Bishkek", country:"吉尔吉斯斯坦", countryEn:"Kyrgyzstan", region:"CA", lat:43.0613, lon:74.4776, cargo:true },
+  { code:"TAS", icao:"UTTT", name:"塔什干国际机场", nameEn:"Tashkent International Airport", city:"塔什干", cityEn:"Tashkent", country:"乌兹别克斯坦", countryEn:"Uzbekistan", region:"CA", lat:41.2579, lon:69.2812, cargo:true },
+  { code:"DYU", icao:"UTDD", name:"杜尚别国际机场", nameEn:"Dushanbe International Airport", city:"杜尚别", cityEn:"Dushanbe", country:"塔吉克斯坦", countryEn:"Tajikistan", region:"CA", lat:38.5433, lon:68.8250, cargo:false },
+  { code:"ASB", icao:"UTAA", name:"阿什哈巴德国际机场", nameEn:"Ashgabat International Airport", city:"阿什哈巴德", cityEn:"Ashgabat", country:"土库曼斯坦", countryEn:"Turkmenistan", region:"CA", lat:37.9869, lon:58.3610, cargo:false },
+
+  // ===== 欧洲 (EU) =====
+  { code:"BUD", icao:"LHBP", name:"布达佩斯李斯特·费伦茨国际机场", nameEn:"Budapest Ferenc Liszt Intl", city:"布达佩斯", cityEn:"Budapest", country:"匈牙利", countryEn:"Hungary", region:"EU", lat:47.4298, lon:19.2612, cargo:true },
+  { code:"WAW", icao:"EPWA", name:"华沙肖邦机场", nameEn:"Warsaw Chopin Airport", city:"华沙", cityEn:"Warsaw", country:"波兰", countryEn:"Poland", region:"EU", lat:52.1657, lon:20.9671, cargo:true },
+  { code:"KTW", icao:"EPKT", name:"卡托维兹国际机场", nameEn:"Katowice International Airport", city:"卡托维兹", cityEn:"Katowice", country:"波兰", countryEn:"Poland", region:"EU", lat:50.4743, lon:19.0800, cargo:true },
+  { code:"WRO", icao:"EPWR", name:"弗罗茨瓦夫哥白尼机场", nameEn:"Wrocław Copernicus Airport", city:"弗罗茨瓦夫", cityEn:"Wrocław", country:"波兰", countryEn:"Poland", region:"EU", lat:51.1027, lon:16.8858, cargo:false },
+  { code:"GDN", icao:"EPGD", name:"格但斯克莱赫·瓦文萨机场", nameEn:"Gdańsk Lech Wałęsa Airport", city:"格但斯克", cityEn:"Gdańsk", country:"波兰", countryEn:"Poland", region:"EU", lat:54.3776, lon:18.4662, cargo:false },
+  { code:"KRK", icao:"EPKK", name:"克拉科夫约翰·保罗二世国际机场", nameEn:"Kraków John Paul II Intl", city:"克拉科夫", cityEn:"Kraków", country:"波兰", countryEn:"Poland", region:"EU", lat:50.0777, lon:19.7848, cargo:false },
+  { code:"FRA", icao:"EDDF", name:"法兰克福机场", nameEn:"Frankfurt Airport", city:"法兰克福", cityEn:"Frankfurt", country:"德国", countryEn:"Germany", region:"EU", lat:50.0379, lon:8.5622, cargo:true },
+  { code:"AMS", icao:"EHAM", name:"阿姆斯特丹史基浦机场", nameEn:"Amsterdam Schiphol Airport", city:"阿姆斯特丹", cityEn:"Amsterdam", country:"荷兰", countryEn:"Netherlands", region:"EU", lat:52.3105, lon:4.7683, cargo:true },
+  { code:"MST", icao:"EHBK", name:"马斯特里赫特亚琛机场", nameEn:"Maastricht Aachen Airport", city:"马斯特里赫特", cityEn:"Maastricht", country:"荷兰", countryEn:"Netherlands", region:"EU", lat:50.9117, lon:5.7701, cargo:true },
+  { code:"LGG", icao:"EBLG", name:"列日机场", nameEn:"Liège Airport", city:"列日", cityEn:"Liège", country:"比利时", countryEn:"Belgium", region:"EU", lat:50.6374, lon:5.4432, cargo:true },
+  { code:"BRU", icao:"EBBR", name:"布鲁塞尔机场", nameEn:"Brussels Airport", city:"布鲁塞尔", cityEn:"Brussels", country:"比利时", countryEn:"Belgium", region:"EU", lat:50.9014, lon:4.4844, cargo:true },
+  { code:"ANR", icao:"EBAW", name:"安特卫普国际机场", nameEn:"Antwerp International Airport", city:"安特卫普", cityEn:"Antwerp", country:"比利时", countryEn:"Belgium", region:"EU", lat:51.1894, lon:4.4603, cargo:true },
+  { code:"OST", icao:"EBOS", name:"奥斯坦德-布鲁日国际机场", nameEn:"Ostend-Bruges Intl Airport", city:"奥斯坦德", cityEn:"Ostend", country:"比利时", countryEn:"Belgium", region:"EU", lat:51.1989, lon:2.8622, cargo:true },
+  { code:"LIL", icao:"LFQQ", name:"里尔机场", nameEn:"Lille Airport", city:"里尔", cityEn:"Lille", country:"法国", countryEn:"France", region:"EU", lat:50.5619, lon:3.0894, cargo:true },
+  { code:"NTE", icao:"LFRS", name:"南特亚特兰蒂克机场", nameEn:"Nantes Atlantique Airport", city:"南特", cityEn:"Nantes", country:"法国", countryEn:"France", region:"EU", lat:47.1532, lon:-1.6107, cargo:false },
+  { code:"BOD", icao:"LFBD", name:"波尔多梅里尼亚克机场", nameEn:"Bordeaux-Mérignac Airport", city:"波尔多", cityEn:"Bordeaux", country:"法国", countryEn:"France", region:"EU", lat:44.8283, lon:-0.7156, cargo:false },
+  { code:"TRN", icao:"LIMF", name:"都灵卡塞莱机场", nameEn:"Turin Airport", city:"都灵", cityEn:"Turin", country:"意大利", countryEn:"Italy", region:"EU", lat:45.2008, lon:7.6496, cargo:true },
+  { code:"NAP", icao:"LIRN", name:"那不勒斯国际机场", nameEn:"Naples International Airport", city:"那不勒斯", cityEn:"Naples", country:"意大利", countryEn:"Italy", region:"EU", lat:40.8860, lon:14.2908, cargo:false },
+  { code:"BTS", icao:"LZIB", name:"布拉迪斯拉发机场", nameEn:"Bratislava Airport", city:"布拉迪斯拉发", cityEn:"Bratislava", country:"斯洛伐克", countryEn:"Slovakia", region:"EU", lat:48.1702, lon:17.2127, cargo:false },
+  { code:"POZ", icao:"EPPO", name:"波兹南亨里克·维尼亚夫斯基机场", nameEn:"Poznań-Ławica Airport", city:"波兹南", cityEn:"Poznań", country:"波兰", countryEn:"Poland", region:"EU", lat:52.4210, lon:16.8263, cargo:false },
+  { code:"RZE", icao:"EPRZ", name:"热舒夫-亚西翁卡机场", nameEn:"Rzeszów-Jasionka Airport", city:"热舒夫", cityEn:"Rzeszów", country:"波兰", countryEn:"Poland", region:"EU", lat:50.1100, lon:22.0190, cargo:true },
+  { code:"TIA", icao:"LATI", name:"地拉那特蕾莎修女国际机场", nameEn:"Tirana Intl Airport Nënë Tereza", city:"地拉那", cityEn:"Tirana", country:"阿尔巴尼亚", countryEn:"Albania", region:"EU", lat:41.4147, lon:19.7206, cargo:false },
+  { code:"SKP", icao:"LWSK", name:"斯科普里国际机场", nameEn:"Skopje International Airport", city:"斯科普里", cityEn:"Skopje", country:"北马其顿", countryEn:"North Macedonia", region:"EU", lat:41.9616, lon:21.6214, cargo:false },
+  { code:"KUN", icao:"EYKA", name:"考纳斯机场", nameEn:"Kaunas Airport", city:"考纳斯", cityEn:"Kaunas", country:"立陶宛", countryEn:"Lithuania", region:"EU", lat:54.9639, lon:24.0848, cargo:true },
+  { code:"CLJ", icao:"LRCL", name:"克卢日-纳波卡国际机场", nameEn:"Cluj-Napoca Intl Airport", city:"克卢日", cityEn:"Cluj-Napoca", country:"罗马尼亚", countryEn:"Romania", region:"EU", lat:46.7852, lon:23.6862, cargo:false },
+  { code:"TRD", icao:"ENVA", name:"特隆赫姆瓦尔内斯机场", nameEn:"Trondheim Værnes Airport", city:"特隆赫姆", cityEn:"Trondheim", country:"挪威", countryEn:"Norway", region:"EU", lat:63.4578, lon:10.9240, cargo:false },
+  { code:"SVG", icao:"ENZV", name:"斯塔万格索拉机场", nameEn:"Stavanger Sola Airport", city:"斯塔万格", cityEn:"Stavanger", country:"挪威", countryEn:"Norway", region:"EU", lat:58.8767, lon:5.6378, cargo:false },
+  { code:"TOS", icao:"ENTC", name:"特罗姆瑟朗内斯机场", nameEn:"Tromsø Airport", city:"特罗姆瑟", cityEn:"Tromsø", country:"挪威", countryEn:"Norway", region:"EU", lat:69.6833, lon:18.9189, cargo:false },
+  { code:"LWO", icao:"UKLL", name:"利沃夫达尼洛·哈利茨基国际机场", nameEn:"Lviv Danylo Halytskyi Intl", city:"利沃夫", cityEn:"Lviv", country:"乌克兰", countryEn:"Ukraine", region:"EU", lat:49.8125, lon:23.9561, cargo:false },
+  { code:"ODS", icao:"UKOO", name:"敖德萨国际机场", nameEn:"Odesa International Airport", city:"敖德萨", cityEn:"Odesa", country:"乌克兰", countryEn:"Ukraine", region:"EU", lat:46.4268, lon:30.6765, cargo:false },
+
+  { code:"LHR", icao:"EGLL", name:"伦敦希思罗机场", nameEn:"London Heathrow Airport", city:"伦敦", cityEn:"London", country:"英国", countryEn:"United Kingdom", region:"EU", lat:51.4700, lon:-0.4543, cargo:true },
+  { code:"LGW", icao:"EGKK", name:"伦敦盖特威克机场", nameEn:"London Gatwick Airport", city:"伦敦", cityEn:"London", country:"英国", countryEn:"United Kingdom", region:"EU", lat:51.1481, lon:-0.1903, cargo:true },
+  { code:"STN", icao:"EGSS", name:"伦敦斯坦斯特德机场", nameEn:"London Stansted Airport", city:"伦敦", cityEn:"London", country:"英国", countryEn:"United Kingdom", region:"EU", lat:51.8850, lon:0.2350, cargo:true },
+  { code:"MAN", icao:"EGCC", name:"曼彻斯特机场", nameEn:"Manchester Airport", city:"曼彻斯特", cityEn:"Manchester", country:"英国", countryEn:"United Kingdom", region:"EU", lat:53.3588, lon:-2.2727, cargo:true },
+  { code:"BHX", icao:"EGBB", name:"伯明翰机场", nameEn:"Birmingham Airport", city:"伯明翰", cityEn:"Birmingham", country:"英国", countryEn:"United Kingdom", region:"EU", lat:52.4539, lon:-1.7480, cargo:false },
+  { code:"EMA", icao:"EGNX", name:"东米德兰兹机场", nameEn:"East Midlands Airport", city:"诺丁汉", cityEn:"Nottingham", country:"英国", countryEn:"United Kingdom", region:"EU", lat:52.8311, lon:-1.3281, cargo:true },
+  { code:"LUX", icao:"ELLX", name:"卢森堡芬德尔机场", nameEn:"Luxembourg Findel Airport", city:"卢森堡", cityEn:"Luxembourg", country:"卢森堡", countryEn:"Luxembourg", region:"EU", lat:49.6233, lon:6.2044, cargo:true },
+  { code:"LEJ", icao:"EDDP", name:"莱比锡哈雷机场", nameEn:"Leipzig/Halle Airport", city:"莱比锡", cityEn:"Leipzig", country:"德国", countryEn:"Germany", region:"EU", lat:51.4235, lon:12.2364, cargo:true },
+  { code:"CGN", icao:"EDDK", name:"科隆波恩机场", nameEn:"Cologne Bonn Airport", city:"科隆", cityEn:"Cologne", country:"德国", countryEn:"Germany", region:"EU", lat:50.8659, lon:7.1427, cargo:true },
+  { code:"MUC", icao:"EDDM", name:"慕尼黑机场", nameEn:"Munich Airport", city:"慕尼黑", cityEn:"Munich", country:"德国", countryEn:"Germany", region:"EU", lat:48.3538, lon:11.7861, cargo:true },
+  { code:"TXL", icao:"EDDT", name:"柏林勃兰登堡机场", nameEn:"Berlin Brandenburg Airport", city:"柏林", cityEn:"Berlin", country:"德国", countryEn:"Germany", region:"EU", lat:52.3667, lon:13.5033, cargo:false },
+  { code:"BER", icao:"EDDB", name:"柏林勃兰登堡机场", nameEn:"Berlin Brandenburg Airport", city:"柏林", cityEn:"Berlin", country:"德国", countryEn:"Germany", region:"EU", lat:52.3667, lon:13.5033, cargo:false },
+  { code:"HAM", icao:"EDDH", name:"汉堡机场", nameEn:"Hamburg Airport", city:"汉堡", cityEn:"Hamburg", country:"德国", countryEn:"Germany", region:"EU", lat:53.6304, lon:9.9882, cargo:false },
+  { code:"DUS", icao:"EDDL", name:"杜塞尔多夫机场", nameEn:"Düsseldorf Airport", city:"杜塞尔多夫", cityEn:"Düsseldorf", country:"德国", countryEn:"Germany", region:"EU", lat:51.2895, lon:6.7668, cargo:false },
+  { code:"STR", icao:"EDDS", name:"斯图加特机场", nameEn:"Stuttgart Airport", city:"斯图加特", cityEn:"Stuttgart", country:"德国", countryEn:"Germany", region:"EU", lat:48.6899, lon:9.2220, cargo:false },
+  { code:"HAJ", icao:"EDDV", name:"汉诺威机场", nameEn:"Hannover Airport", city:"汉诺威", cityEn:"Hannover", country:"德国", countryEn:"Germany", region:"EU", lat:52.4611, lon:9.6851, cargo:false },
+  { code:"CDG", icao:"LFPG", name:"巴黎戴高乐机场", nameEn:"Paris Charles de Gaulle Airport", city:"巴黎", cityEn:"Paris", country:"法国", countryEn:"France", region:"EU", lat:49.0097, lon:2.5479, cargo:true },
+  { code:"ORY", icao:"LFPO", name:"巴黎奥利机场", nameEn:"Paris Orly Airport", city:"巴黎", cityEn:"Paris", country:"法国", countryEn:"France", region:"EU", lat:48.7233, lon:2.3594, cargo:false },
+  { code:"LYS", icao:"LFLL", name:"里昂圣埃克絮佩里机场", nameEn:"Lyon–Saint-Exupéry Airport", city:"里昂", cityEn:"Lyon", country:"法国", countryEn:"France", region:"EU", lat:45.7256, lon:5.0811, cargo:true },
+  { code:"MRS", icao:"LFML", name:"马赛普罗旺斯机场", nameEn:"Marseille Provence Airport", city:"马赛", cityEn:"Marseille", country:"法国", countryEn:"France", region:"EU", lat:43.4367, lon:5.2150, cargo:false },
+  { code:"TLS", icao:"LFBO", name:"图卢兹布拉尼亚克机场", nameEn:"Toulouse-Blagnac Airport", city:"图卢兹", cityEn:"Toulouse", country:"法国", countryEn:"France", region:"EU", lat:43.6291, lon:1.3638, cargo:false },
+  { code:"MXP", icao:"LIMC", name:"米兰马尔彭萨机场", nameEn:"Milan Malpensa Airport", city:"米兰", cityEn:"Milan", country:"意大利", countryEn:"Italy", region:"EU", lat:45.6306, lon:8.7281, cargo:true },
+  { code:"FCO", icao:"LIRF", name:"罗马菲乌米奇诺机场", nameEn:"Rome Fiumicino Airport", city:"罗马", cityEn:"Rome", country:"意大利", countryEn:"Italy", region:"EU", lat:41.8003, lon:12.2389, cargo:true },
+  { code:"BLQ", icao:"LIPE", name:"博洛尼亚古列尔莫·马可尼机场", nameEn:"Bologna Guglielmo Marconi Airport", city:"博洛尼亚", cityEn:"Bologna", country:"意大利", countryEn:"Italy", region:"EU", lat:44.5354, lon:11.2887, cargo:true },
+  { code:"VCE", icao:"LIPZ", name:"威尼斯马可·波罗机场", nameEn:"Venice Marco Polo Airport", city:"威尼斯", cityEn:"Venice", country:"意大利", countryEn:"Italy", region:"EU", lat:45.5053, lon:12.3519, cargo:false },
+  { code:"MAD", icao:"LEMD", name:"马德里巴拉哈斯机场", nameEn:"Madrid Barajas Airport", city:"马德里", cityEn:"Madrid", country:"西班牙", countryEn:"Spain", region:"EU", lat:40.4936, lon:-3.5668, cargo:true },
+  { code:"BCN", icao:"LEBL", name:"巴塞罗那埃尔普拉特机场", nameEn:"Barcelona El Prat Airport", city:"巴塞罗那", cityEn:"Barcelona", country:"西班牙", countryEn:"Spain", region:"EU", lat:41.2974, lon:2.0833, cargo:false },
+  { code:"ZAZ", icao:"LEZG", name:"萨拉戈萨机场", nameEn:"Zaragoza Airport", city:"萨拉戈萨", cityEn:"Zaragoza", country:"西班牙", countryEn:"Spain", region:"EU", lat:41.6662, lon:-1.0416, cargo:true },
+  { code:"VLC", icao:"LEVC", name:"瓦伦西亚机场", nameEn:"Valencia Airport", city:"瓦伦西亚", cityEn:"Valencia", country:"西班牙", countryEn:"Spain", region:"EU", lat:39.4893, lon:-0.4816, cargo:false },
+  { code:"ZRH", icao:"LSZH", name:"苏黎世机场", nameEn:"Zurich Airport", city:"苏黎世", cityEn:"Zurich", country:"瑞士", countryEn:"Switzerland", region:"EU", lat:47.4647, lon:8.5492, cargo:true },
+  { code:"GVA", icao:"LSGG", name:"日内瓦机场", nameEn:"Geneva Airport", city:"日内瓦", cityEn:"Geneva", country:"瑞士", countryEn:"Switzerland", region:"EU", lat:46.2381, lon:6.1089, cargo:false },
+  { code:"BSL", icao:"LFSB", name:"巴塞尔米卢斯弗赖堡欧洲机场", nameEn:"EuroAirport Basel Mulhouse Freiburg", city:"巴塞尔", cityEn:"Basel", country:"瑞士/法国", countryEn:"Switzerland/France", region:"EU", lat:47.5896, lon:7.5299, cargo:true },
+  { code:"VIE", icao:"LOWW", name:"维也纳国际机场", nameEn:"Vienna International Airport", city:"维也纳", cityEn:"Vienna", country:"奥地利", countryEn:"Austria", region:"EU", lat:48.1103, lon:16.5697, cargo:false },
+  { code:"PRG", icao:"LKPR", name:"布拉格瓦茨拉夫·哈维尔机场", nameEn:"Václav Havel Airport Prague", city:"布拉格", cityEn:"Prague", country:"捷克", countryEn:"Czech Republic", region:"EU", lat:50.1008, lon:14.2600, cargo:false },
+  { code:"IST", icao:"LTFM", name:"伊斯坦布尔机场", nameEn:"Istanbul Airport", city:"伊斯坦布尔", cityEn:"Istanbul", country:"土耳其", countryEn:"Turkey", region:"EU", lat:41.2617, lon:28.7420, cargo:true },
+  { code:"SAW", icao:"LTFJ", name:"伊斯坦布尔萨比哈·格克琴机场", nameEn:"Sabiha Gökçen Intl Airport", city:"伊斯坦布尔", cityEn:"Istanbul", country:"土耳其", countryEn:"Turkey", region:"EU", lat:40.8986, lon:29.3092, cargo:true },
+  { code:"HEL", icao:"EFHK", name:"赫尔辛基万塔机场", nameEn:"Helsinki-Vantaa Airport", city:"赫尔辛基", cityEn:"Helsinki", country:"芬兰", countryEn:"Finland", region:"EU", lat:60.3172, lon:24.9633, cargo:false },
+  { code:"CPH", icao:"EKCH", name:"哥本哈根凯斯楚普机场", nameEn:"Copenhagen Airport", city:"哥本哈根", cityEn:"Copenhagen", country:"丹麦", countryEn:"Denmark", region:"EU", lat:55.6180, lon:12.6508, cargo:false },
+  { code:"BLL", icao:"EKBI", name:"比隆机场", nameEn:"Billund Airport", city:"比隆", cityEn:"Billund", country:"丹麦", countryEn:"Denmark", region:"EU", lat:55.7403, lon:9.1518, cargo:true },
+  { code:"AAR", icao:"EKAH", name:"奥胡斯机场", nameEn:"Aarhus Airport", city:"奥胡斯", cityEn:"Aarhus", country:"丹麦", countryEn:"Denmark", region:"EU", lat:56.3000, lon:10.6190, cargo:false },
+  { code:"OSL", icao:"ENGM", name:"奥斯陆加勒穆恩机场", nameEn:"Oslo Gardermoen Airport", city:"奥斯陆", cityEn:"Oslo", country:"挪威", countryEn:"Norway", region:"EU", lat:60.1976, lon:11.1004, cargo:false },
+  { code:"BGO", icao:"ENBR", name:"卑尔根弗莱斯兰机场", nameEn:"Bergen Flesland Airport", city:"卑尔根", cityEn:"Bergen", country:"挪威", countryEn:"Norway", region:"EU", lat:60.2936, lon:5.2181, cargo:false },
+  { code:"ARN", icao:"ESSA", name:"斯德哥尔摩阿兰达机场", nameEn:"Stockholm Arlanda Airport", city:"斯德哥尔摩", cityEn:"Stockholm", country:"瑞典", countryEn:"Sweden", region:"EU", lat:59.6519, lon:17.9186, cargo:false },
+  { code:"GOT", icao:"ESGG", name:"哥德堡兰德维特机场", nameEn:"Göteborg Landvetter Airport", city:"哥德堡", cityEn:"Gothenburg", country:"瑞典", countryEn:"Sweden", region:"EU", lat:57.6600, lon:12.2911, cargo:false },
+  { code:"MMX", icao:"ESMS", name:"马尔默斯图鲁普机场", nameEn:"Malmö Sturup Airport", city:"马尔默", cityEn:"Malmö", country:"瑞典", countryEn:"Sweden", region:"EU", lat:55.5363, lon:13.3762, cargo:false },
+  { code:"DUB", icao:"EIDW", name:"都柏林机场", nameEn:"Dublin Airport", city:"都柏林", cityEn:"Dublin", country:"爱尔兰", countryEn:"Ireland", region:"EU", lat:53.4213, lon:-6.2701, cargo:true },
+  { code:"SNN", icao:"EINN", name:"香农机场", nameEn:"Shannon Airport", city:"香农", cityEn:"Shannon", country:"爱尔兰", countryEn:"Ireland", region:"EU", lat:52.7020, lon:-8.9248, cargo:true },
+  { code:"LIS", icao:"LPPT", name:"里斯本温贝托·德尔加多机场", nameEn:"Lisbon Airport", city:"里斯本", cityEn:"Lisbon", country:"葡萄牙", countryEn:"Portugal", region:"EU", lat:38.7742, lon:-9.1342, cargo:false },
+  { code:"OPO", icao:"LPPR", name:"波尔图弗朗西斯科·萨·卡内罗机场", nameEn:"Porto Airport", city:"波尔图", cityEn:"Porto", country:"葡萄牙", countryEn:"Portugal", region:"EU", lat:41.2481, lon:-8.6814, cargo:false },
+  { code:"ATH", icao:"LGAV", name:"雅典埃莱夫塞里奥斯·韦尼泽洛斯机场", nameEn:"Athens International Airport", city:"雅典", cityEn:"Athens", country:"希腊", countryEn:"Greece", region:"EU", lat:37.9364, lon:23.9445, cargo:false },
+  { code:"OTP", icao:"LROP", name:"布加勒斯特亨利·科安德国际机场", nameEn:"Bucharest Henri Coandă Intl", city:"布加勒斯特", cityEn:"Bucharest", country:"罗马尼亚", countryEn:"Romania", region:"EU", lat:44.5711, lon:26.0850, cargo:false },
+  { code:"SOF", icao:"LBSF", name:"索非亚机场", nameEn:"Sofia Airport", city:"索非亚", cityEn:"Sofia", country:"保加利亚", countryEn:"Bulgaria", region:"EU", lat:42.6967, lon:23.4114, cargo:false },
+  { code:"BEG", icao:"LYBE", name:"贝尔格莱德尼古拉·特斯拉机场", nameEn:"Belgrade Nikola Tesla Airport", city:"贝尔格莱德", cityEn:"Belgrade", country:"塞尔维亚", countryEn:"Serbia", region:"EU", lat:44.8184, lon:20.3091, cargo:false },
+  { code:"ZAG", icao:"LDZA", name:"萨格勒布机场", nameEn:"Zagreb Airport", city:"萨格勒布", cityEn:"Zagreb", country:"克罗地亚", countryEn:"Croatia", region:"EU", lat:45.7429, lon:16.0688, cargo:false },
+  { code:"LJU", icao:"LJLJ", name:"卢布尔雅那约热·普奇尼克机场", nameEn:"Ljubljana Jože Pučnik Airport", city:"卢布尔雅那", cityEn:"Ljubljana", country:"斯洛文尼亚", countryEn:"Slovenia", region:"EU", lat:46.2237, lon:14.4576, cargo:false },
+  { code:"VNO", icao:"EYVI", name:"维尔纽斯国际机场", nameEn:"Vilnius International Airport", city:"维尔纽斯", cityEn:"Vilnius", country:"立陶宛", countryEn:"Lithuania", region:"EU", lat:54.6341, lon:25.2858, cargo:false },
+  { code:"RIX", icao:"EVRA", name:"里加国际机场", nameEn:"Riga International Airport", city:"里加", cityEn:"Riga", country:"拉脱维亚", countryEn:"Latvia", region:"EU", lat:56.9236, lon:23.9711, cargo:false },
+  { code:"TLL", icao:"EETN", name:"塔林伦纳特·梅里机场", nameEn:"Tallinn Airport", city:"塔林", cityEn:"Tallinn", country:"爱沙尼亚", countryEn:"Estonia", region:"EU", lat:59.4133, lon:24.8328, cargo:false },
+  { code:"KBP", icao:"UKBB", name:"基辅鲍里斯波尔国际机场", nameEn:"Boryspil International Airport", city:"基辅", cityEn:"Kyiv", country:"乌克兰", countryEn:"Ukraine", region:"EU", lat:50.3450, lon:30.8947, cargo:false },
+  { code:"MSQ", icao:"UMMS", name:"明斯克国际机场", nameEn:"Minsk National Airport", city:"明斯克", cityEn:"Minsk", country:"白俄罗斯", countryEn:"Belarus", region:"EU", lat:53.8825, lon:28.0307, cargo:false },
+  { code:"SVO", icao:"UUEE", name:"莫斯科谢列梅捷沃国际机场", nameEn:"Sheremetyevo Intl Airport", city:"莫斯科", cityEn:"Moscow", country:"俄罗斯", countryEn:"Russia", region:"EU", lat:55.9726, lon:37.4146, cargo:true },
+  { code:"DME", icao:"UUDD", name:"莫斯科多莫杰多沃机场", nameEn:"Domodedovo International Airport", city:"莫斯科", cityEn:"Moscow", country:"俄罗斯", countryEn:"Russia", region:"EU", lat:55.4088, lon:37.9063, cargo:true },
+  { code:"LED", icao:"ULLI", name:"圣彼得堡普尔科沃机场", nameEn:"Pulkovo Airport", city:"圣彼得堡", cityEn:"Saint Petersburg", country:"俄罗斯", countryEn:"Russia", region:"EU", lat:59.8003, lon:30.2625, cargo:true },
+  { code:"VKO", icao:"UUWW", name:"莫斯科伏努科沃国际机场", nameEn:"Vnukovo International Airport", city:"莫斯科", cityEn:"Moscow", country:"俄罗斯", countryEn:"Russia", region:"EU", lat:55.5915, lon:37.2615, cargo:false },
+
+  // ===== 亚洲 (AS) =====
+  { code:"HKG", icao:"VHHH", name:"香港国际机场", nameEn:"Hong Kong International Airport", city:"香港", cityEn:"Hong Kong", country:"中国香港", countryEn:"Hong Kong, China", region:"AS", lat:22.3080, lon:113.9185, cargo:true },
+  { code:"MFM", icao:"VMMC", name:"澳门国际机场", nameEn:"Macau International Airport", city:"澳门", cityEn:"Macau", country:"中国澳门", countryEn:"Macao, China", region:"AS", lat:22.1496, lon:113.5916, cargo:false },
+  { code:"TPE", icao:"RCTP", name:"台湾桃园国际机场", nameEn:"Taiwan Taoyuan International Airport", city:"台北", cityEn:"Taipei", country:"中国台湾", countryEn:"Taiwan, China", region:"AS", lat:25.0777, lon:121.2328, cargo:true },
+  { code:"ICN", icao:"RKSI", name:"仁川国际机场", nameEn:"Incheon International Airport", city:"首尔", cityEn:"Seoul", country:"韩国", countryEn:"South Korea", region:"AS", lat:37.4602, lon:126.4407, cargo:true },
+  { code:"PUS", icao:"RKPK", name:"金海国际机场", nameEn:"Gimhae International Airport", city:"釜山", cityEn:"Busan", country:"韩国", countryEn:"South Korea", region:"AS", lat:35.1795, lon:128.9382, cargo:false },
+  { code:"NRT", icao:"RJAA", name:"成田国际机场", nameEn:"Narita International Airport", city:"东京", cityEn:"Tokyo", country:"日本", countryEn:"Japan", region:"AS", lat:35.7719, lon:140.3929, cargo:true },
+  { code:"HND", icao:"RJTT", name:"东京羽田机场", nameEn:"Tokyo Haneda Airport", city:"东京", cityEn:"Tokyo", country:"日本", countryEn:"Japan", region:"AS", lat:35.5494, lon:139.7798, cargo:true },
+  { code:"KIX", icao:"RJBB", name:"关西国际机场", nameEn:"Kansai International Airport", city:"大阪", cityEn:"Osaka", country:"日本", countryEn:"Japan", region:"AS", lat:34.4320, lon:135.2304, cargo:true },
+  { code:"NGO", icao:"RJGG", name:"中部国际机场", nameEn:"Chubu Centrair Intl Airport", city:"名古屋", cityEn:"Nagoya", country:"日本", countryEn:"Japan", region:"AS", lat:34.8584, lon:136.8054, cargo:true },
+  { code:"SIN", icao:"WSSS", name:"新加坡樟宜机场", nameEn:"Singapore Changi Airport", city:"新加坡", cityEn:"Singapore", country:"新加坡", countryEn:"Singapore", region:"AS", lat:1.3644, lon:103.9915, cargo:true },
+  { code:"BKK", icao:"VTBS", name:"曼谷素万那普机场", nameEn:"Suvarnabhumi Airport", city:"曼谷", cityEn:"Bangkok", country:"泰国", countryEn:"Thailand", region:"AS", lat:13.6900, lon:100.7501, cargo:true },
+  { code:"DMK", icao:"VTBD", name:"曼谷廊曼国际机场", nameEn:"Don Mueang International Airport", city:"曼谷", cityEn:"Bangkok", country:"泰国", countryEn:"Thailand", region:"AS", lat:13.9125, lon:100.6067, cargo:false },
+  { code:"HKT", icao:"VTSP", name:"普吉国际机场", nameEn:"Phuket International Airport", city:"普吉", cityEn:"Phuket", country:"泰国", countryEn:"Thailand", region:"AS", lat:8.1132, lon:98.3169, cargo:false },
+  { code:"SGN", icao:"VVTS", name:"胡志明市新山一机场", nameEn:"Tan Son Nhat Intl Airport", city:"胡志明市", cityEn:"Ho Chi Minh City", country:"越南", countryEn:"Vietnam", region:"AS", lat:10.8188, lon:106.6520, cargo:true },
+  { code:"HAN", icao:"VVNB", name:"河内内排国际机场", nameEn:"Noi Bai International Airport", city:"河内", cityEn:"Hanoi", country:"越南", countryEn:"Vietnam", region:"AS", lat:21.2212, lon:105.8072, cargo:true },
+  { code:"KUL", icao:"WMKK", name:"吉隆坡国际机场", nameEn:"Kuala Lumpur Intl Airport", city:"吉隆坡", cityEn:"Kuala Lumpur", country:"马来西亚", countryEn:"Malaysia", region:"AS", lat:2.7456, lon:101.7099, cargo:true },
+  { code:"PEN", icao:"WMKP", name:"槟城国际机场", nameEn:"Penang International Airport", city:"槟城", cityEn:"Penang", country:"马来西亚", countryEn:"Malaysia", region:"AS", lat:5.2971, lon:100.2769, cargo:false },
+  { code:"CGK", icao:"WIII", name:"雅加达苏加诺-哈达机场", nameEn:"Soekarno-Hatta Intl Airport", city:"雅加达", cityEn:"Jakarta", country:"印尼", countryEn:"Indonesia", region:"AS", lat:-6.1256, lon:106.6559, cargo:true },
+  { code:"SUB", icao:"WARR", name:"泗水朱安达国际机场", nameEn:"Juanda International Airport", city:"泗水", cityEn:"Surabaya", country:"印尼", countryEn:"Indonesia", region:"AS", lat:-7.3798, lon:112.7868, cargo:false },
+  { code:"DPS", icao:"WADD", name:"巴厘岛伍拉·赖国际机场", nameEn:"Ngurah Rai Intl Airport", city:"登巴萨", cityEn:"Denpasar", country:"印尼", countryEn:"Indonesia", region:"AS", lat:-8.7482, lon:115.1675, cargo:false },
+  { code:"MNL", icao:"RPLL", name:"马尼拉尼诺伊·阿基诺机场", nameEn:"Ninoy Aquino Intl Airport", city:"马尼拉", cityEn:"Manila", country:"菲律宾", countryEn:"Philippines", region:"AS", lat:14.5086, lon:121.0198, cargo:false },
+  { code:"CEB", icao:"RPVM", name:"宿务麦克坦国际机场", nameEn:"Mactan-Cebu Intl Airport", city:"宿务", cityEn:"Cebu", country:"菲律宾", countryEn:"Philippines", region:"AS", lat:10.3075, lon:123.9794, cargo:false },
+  { code:"DEL", icao:"VIDP", name:"德里英迪拉·甘地国际机场", nameEn:"Indira Gandhi Intl Airport", city:"德里", cityEn:"Delhi", country:"印度", countryEn:"India", region:"AS", lat:28.5562, lon:77.1001, cargo:true },
+  { code:"BOM", icao:"VABB", name:"孟买贾特拉帕蒂·希瓦吉机场", nameEn:"Chhatrapati Shivaji Intl", city:"孟买", cityEn:"Mumbai", country:"印度", countryEn:"India", region:"AS", lat:19.0896, lon:72.8656, cargo:true },
+  { code:"MAA", icao:"VOMM", name:"金奈国际机场", nameEn:"Chennai International Airport", city:"金奈", cityEn:"Chennai", country:"印度", countryEn:"India", region:"AS", lat:12.9941, lon:80.1805, cargo:true },
+  { code:"BLR", icao:"VOBL", name:"班加罗尔肯佩格达国际机场", nameEn:"Kempegowda Intl Airport", city:"班加罗尔", cityEn:"Bengaluru", country:"印度", countryEn:"India", region:"AS", lat:13.1986, lon:77.7064, cargo:true },
+  { code:"HYD", icao:"VOHS", name:"海得拉巴拉吉夫·甘地国际机场", nameEn:"Rajiv Gandhi Intl Airport", city:"海得拉巴", cityEn:"Hyderabad", country:"印度", countryEn:"India", region:"AS", lat:17.2403, lon:78.4294, cargo:true },
+  { code:"CCU", icao:"VECC", name:"加尔各答内塔吉·苏巴斯·钱德拉·鲍斯国际机场", nameEn:"Netaji Subhas Chandra Bose Intl", city:"加尔各答", cityEn:"Kolkata", country:"印度", countryEn:"India", region:"AS", lat:22.6547, lon:88.4467, cargo:true },
+  { code:"AMD", icao:"VAAH", name:"艾哈迈达巴德机场", nameEn:"Sardar Vallabhbhai Patel Intl", city:"艾哈迈达巴德", cityEn:"Ahmedabad", country:"印度", countryEn:"India", region:"AS", lat:23.0772, lon:72.6347, cargo:true },
+  { code:"COK", icao:"VOCI", name:"科钦国际机场", nameEn:"Cochin International Airport", city:"科钦", cityEn:"Kochi", country:"印度", countryEn:"India", region:"AS", lat:10.1520, lon:76.4019, cargo:true },
+  { code:"PNQ", icao:"VAPO", name:"浦那机场", nameEn:"Pune Airport", city:"浦那", cityEn:"Pune", country:"印度", countryEn:"India", region:"AS", lat:18.5822, lon:73.9197, cargo:false },
+  { code:"JAI", icao:"VIJP", name:"斋浦尔国际机场", nameEn:"Jaipur International Airport", city:"斋浦尔", cityEn:"Jaipur", country:"印度", countryEn:"India", region:"AS", lat:26.8242, lon:75.8122, cargo:false },
+  { code:"LKO", icao:"VILK", name:"勒克瑙乔杜里查兰·辛格机场", nameEn:"Chaudhary Charan Singh Intl", city:"勒克瑙", cityEn:"Lucknow", country:"印度", countryEn:"India", region:"AS", lat:26.7606, lon:80.8893, cargo:false },
+  { code:"GOI", icao:"VOGO", name:"果阿马诺哈尔国际机场", nameEn:"Manohar International Airport", city:"果阿", cityEn:"Goa", country:"印度", countryEn:"India", region:"AS", lat:15.7300, lon:73.8625, cargo:false },
+  { code:"DAC", icao:"VGHS", name:"达卡沙阿贾拉勒国际机场", nameEn:"Hazrat Shahjalal Intl Airport", city:"达卡", cityEn:"Dhaka", country:"孟加拉国", countryEn:"Bangladesh", region:"AS", lat:23.8433, lon:90.3978, cargo:true },
+  { code:"CGP", icao:"VGEG", name:"吉大港沙赫阿马纳国际机场", nameEn:"Shah Amanat Intl Airport", city:"吉大港", cityEn:"Chittagong", country:"孟加拉国", countryEn:"Bangladesh", region:"AS", lat:22.2496, lon:91.8133, cargo:true },
+  { code:"RGN", icao:"VYYY", name:"仰光国际机场", nameEn:"Yangon International Airport", city:"仰光", cityEn:"Yangon", country:"缅甸", countryEn:"Myanmar", region:"AS", lat:16.9073, lon:96.1332, cargo:false },
+  { code:"KTM", icao:"VNKT", name:"加德满都特里布万国际机场", nameEn:"Tribhuvan International Airport", city:"加德满都", cityEn:"Kathmandu", country:"尼泊尔", countryEn:"Nepal", region:"AS", lat:27.6966, lon:85.3591, cargo:false },
+  { code:"CMB", icao:"VCBI", name:"科伦坡班达拉奈克国际机场", nameEn:"Bandaranaike Intl Airport", city:"科伦坡", cityEn:"Colombo", country:"斯里兰卡", countryEn:"Sri Lanka", region:"AS", lat:7.1808, lon:79.8841, cargo:true },
+  { code:"MLE", icao:"VRMM", name:"马累维拉纳国际机场", nameEn:"Velana International Airport", city:"马累", cityEn:"Malé", country:"马尔代夫", countryEn:"Maldives", region:"AS", lat:4.1918, lon:73.5291, cargo:false },
+  { code:"KHI", icao:"OPKC", name:"卡拉奇真纳国际机场", nameEn:"Jinnah International Airport", city:"卡拉奇", cityEn:"Karachi", country:"巴基斯坦", countryEn:"Pakistan", region:"AS", lat:24.9065, lon:67.1608, cargo:true },
+  { code:"LHE", icao:"OPLA", name:"拉合尔阿拉马·伊克巴勒国际机场", nameEn:"Allama Iqbal Intl Airport", city:"拉合尔", cityEn:"Lahore", country:"巴基斯坦", countryEn:"Pakistan", region:"AS", lat:31.5216, lon:74.4036, cargo:true },
+  { code:"ISB", icao:"OPIS", name:"伊斯兰堡国际机场", nameEn:"Islamabad International Airport", city:"伊斯兰堡", cityEn:"Islamabad", country:"巴基斯坦", countryEn:"Pakistan", region:"AS", lat:33.5607, lon:72.8397, cargo:false },
+  { code:"ULN", icao:"ZMCK", name:"乌兰巴托成吉思汗国际机场", nameEn:"Chinggis Khaan Intl Airport", city:"乌兰巴托", cityEn:"Ulaanbaatar", country:"蒙古", countryEn:"Mongolia", region:"AS", lat:47.8431, lon:106.7662, cargo:false },
+  { code:"RGN", icao:"VYYY", name:"仰光国际机场", nameEn:"Yangon International Airport", city:"仰光", cityEn:"Yangon", country:"缅甸", countryEn:"Myanmar", region:"AS", lat:16.9073, lon:96.1332, cargo:false },
+  { code:"PNH", icao:"VDPP", name:"金边国际机场", nameEn:"Phnom Penh International Airport", city:"金边", cityEn:"Phnom Penh", country:"柬埔寨", countryEn:"Cambodia", region:"AS", lat:11.5466, lon:104.8441, cargo:false },
+  { code:"REP", icao:"VDSR", name:"暹粒吴哥国际机场", nameEn:"Siem Reap–Angkor Intl Airport", city:"暹粒", cityEn:"Siem Reap", country:"柬埔寨", countryEn:"Cambodia", region:"AS", lat:13.4107, lon:103.8127, cargo:false },
+  { code:"VTE", icao:"VLVT", name:"万象瓦岱国际机场", nameEn:"Wattay International Airport", city:"万象", cityEn:"Vientiane", country:"老挝", countryEn:"Laos", region:"AS", lat:17.9883, lon:102.5633, cargo:false },
+  { code:"BWN", icao:"WBSB", name:"斯里巴加湾文莱国际机场", nameEn:"Brunei International Airport", city:"斯里巴加湾", cityEn:"Bandar Seri Begawan", country:"文莱", countryEn:"Brunei", region:"AS", lat:4.9442, lon:114.9284, cargo:false },
+
+  // ===== 中东 (ME) =====
+  { code:"DXB", icao:"OMDB", name:"迪拜国际机场", nameEn:"Dubai International Airport", city:"迪拜", cityEn:"Dubai", country:"阿联酋", countryEn:"UAE", region:"ME", lat:25.2532, lon:55.3657, cargo:true },
+  { code:"DWC", icao:"OMDW", name:"阿勒马克图姆国际机场", nameEn:"Al Maktoum International Airport", city:"迪拜", cityEn:"Dubai", country:"阿联酋", countryEn:"UAE", region:"ME", lat:24.9180, lon:55.1758, cargo:true },
+  { code:"SHJ", icao:"OMSJ", name:"沙迦国际机场", nameEn:"Sharjah International Airport", city:"沙迦", cityEn:"Sharjah", country:"阿联酋", countryEn:"UAE", region:"ME", lat:25.3286, lon:55.5172, cargo:true },
+  { code:"AUH", icao:"OMAA", name:"阿布扎比国际机场", nameEn:"Abu Dhabi International Airport", city:"阿布扎比", cityEn:"Abu Dhabi", country:"阿联酋", countryEn:"UAE", region:"ME", lat:24.4330, lon:54.6511, cargo:true },
+  { code:"DOH", icao:"OTHH", name:"多哈哈马德国际机场", nameEn:"Hamad International Airport", city:"多哈", cityEn:"Doha", country:"卡塔尔", countryEn:"Qatar", region:"ME", lat:25.2731, lon:51.6081, cargo:true },
+  { code:"BAH", icao:"OBBI", name:"巴林国际机场", nameEn:"Bahrain International Airport", city:"麦纳麦", cityEn:"Manama", country:"巴林", countryEn:"Bahrain", region:"ME", lat:26.2708, lon:50.6336, cargo:true },
+  { code:"KWI", icao:"OKBK", name:"科威特国际机场", nameEn:"Kuwait International Airport", city:"科威特城", cityEn:"Kuwait City", country:"科威特", countryEn:"Kuwait", region:"ME", lat:29.2266, lon:47.9689, cargo:true },
+  { code:"MCT", icao:"OOMS", name:"马斯喀特国际机场", nameEn:"Muscat International Airport", city:"马斯喀特", cityEn:"Muscat", country:"阿曼", countryEn:"Oman", region:"ME", lat:23.5933, lon:58.2844, cargo:true },
+  { code:"JED", icao:"OEJN", name:"吉达阿卜杜勒-阿齐兹国王机场", nameEn:"King Abdulaziz Intl Airport", city:"吉达", cityEn:"Jeddah", country:"沙特阿拉伯", countryEn:"Saudi Arabia", region:"ME", lat:21.6700, lon:39.1505, cargo:true },
+  { code:"RUH", icao:"OERK", name:"利雅得哈立德国王机场", nameEn:"King Khalid Intl Airport", city:"利雅得", cityEn:"Riyadh", country:"沙特阿拉伯", countryEn:"Saudi Arabia", region:"ME", lat:24.9576, lon:46.6988, cargo:true },
+  { code:"DMM", icao:"OEDF", name:"达曼法赫德国王国际机场", nameEn:"King Fahd Intl Airport", city:"达曼", cityEn:"Dammam", country:"沙特阿拉伯", countryEn:"Saudi Arabia", region:"ME", lat:26.4712, lon:49.7979, cargo:true },
+  { code:"BEY", icao:"OLBA", name:"贝鲁特-拉菲克·哈里里国际机场", nameEn:"Beirut Rafic Hariri Intl Airport", city:"贝鲁特", cityEn:"Beirut", country:"黎巴嫩", countryEn:"Lebanon", region:"ME", lat:33.8209, lon:35.4884, cargo:false },
+  { code:"AMM", icao:"OJAI", name:"安曼阿莉娅王后国际机场", nameEn:"Queen Alia International Airport", city:"安曼", cityEn:"Amman", country:"约旦", countryEn:"Jordan", region:"ME", lat:31.7226, lon:35.9932, cargo:true },
+  { code:"TLV", icao:"LLBG", name:"特拉维夫本·古里安国际机场", nameEn:"Ben Gurion Airport", city:"特拉维夫", cityEn:"Tel Aviv", country:"以色列", countryEn:"Israel", region:"ME", lat:32.0114, lon:34.8867, cargo:true },
+  { code:"IKA", icao:"OIIE", name:"德黑兰伊玛目霍梅尼国际机场", nameEn:"Imam Khomeini Intl Airport", city:"德黑兰", cityEn:"Tehran", country:"伊朗", countryEn:"Iran", region:"ME", lat:35.4161, lon:51.1522, cargo:true },
+
+  // ===== 北美 (NA) =====
+  { code:"LAX", icao:"KLAX", name:"洛杉矶国际机场", nameEn:"Los Angeles International Airport", city:"洛杉矶", cityEn:"Los Angeles", country:"美国", countryEn:"USA", region:"NA", lat:33.9416, lon:-118.4085, cargo:true },
+  { code:"JFK", icao:"KJFK", name:"纽约约翰·肯尼迪国际机场", nameEn:"John F. Kennedy Intl Airport", city:"纽约", cityEn:"New York", country:"美国", countryEn:"USA", region:"NA", lat:40.6413, lon:-73.7781, cargo:true },
+  { code:"EWR", icao:"KEWR", name:"纽瓦克自由国际机场", nameEn:"Newark Liberty Intl Airport", city:"纽瓦克", cityEn:"Newark", country:"美国", countryEn:"USA", region:"NA", lat:40.6895, lon:-74.1745, cargo:true },
+  { code:"ORD", icao:"KORD", name:"芝加哥奥黑尔国际机场", nameEn:"O'Hare International Airport", city:"芝加哥", cityEn:"Chicago", country:"美国", countryEn:"USA", region:"NA", lat:41.9742, lon:-87.9073, cargo:true },
+  { code:"MIA", icao:"KMIA", name:"迈阿密国际机场", nameEn:"Miami International Airport", city:"迈阿密", cityEn:"Miami", country:"美国", countryEn:"USA", region:"NA", lat:25.7933, lon:-80.2906, cargo:true },
+  { code:"DFW", icao:"KDFW", name:"达拉斯沃斯堡国际机场", nameEn:"Dallas/Fort Worth Intl Airport", city:"达拉斯", cityEn:"Dallas", country:"美国", countryEn:"USA", region:"NA", lat:32.8998, lon:-97.0403, cargo:true },
+  { code:"ATL", icao:"KATL", name:"亚特兰大哈兹菲尔德-杰克逊机场", nameEn:"Hartsfield-Jackson Atlanta Intl", city:"亚特兰大", cityEn:"Atlanta", country:"美国", countryEn:"USA", region:"NA", lat:33.6407, lon:-84.4277, cargo:true },
+  { code:"SFO", icao:"KSFO", name:"旧金山国际机场", nameEn:"San Francisco International Airport", city:"旧金山", cityEn:"San Francisco", country:"美国", countryEn:"USA", region:"NA", lat:37.6213, lon:-122.3790, cargo:true },
+  { code:"SEA", icao:"KSEA", name:"西雅图塔科马国际机场", nameEn:"Seattle-Tacoma Intl Airport", city:"西雅图", cityEn:"Seattle", country:"美国", countryEn:"USA", region:"NA", lat:47.4502, lon:-122.3088, cargo:true },
+  { code:"IAH", icao:"KIAH", name:"休斯顿乔治·布什洲际机场", nameEn:"George Bush Intercontinental Airport", city:"休斯顿", cityEn:"Houston", country:"美国", countryEn:"USA", region:"NA", lat:29.9902, lon:-95.3368, cargo:true },
+  { code:"BOS", icao:"KBOS", name:"波士顿洛根国际机场", nameEn:"Boston Logan Intl Airport", city:"波士顿", cityEn:"Boston", country:"美国", countryEn:"USA", region:"NA", lat:42.3656, lon:-71.0096, cargo:false },
+  { code:"IAD", icao:"KIAD", name:"华盛顿杜勒斯国际机场", nameEn:"Washington Dulles Intl Airport", city:"华盛顿", cityEn:"Washington D.C.", country:"美国", countryEn:"USA", region:"NA", lat:38.9445, lon:-77.4558, cargo:true },
+  { code:"PHL", icao:"KPHL", name:"费城国际机场", nameEn:"Philadelphia International Airport", city:"费城", cityEn:"Philadelphia", country:"美国", countryEn:"USA", region:"NA", lat:39.8744, lon:-75.2424, cargo:false },
+  { code:"DTW", icao:"KDTW", name:"底特律大都会机场", nameEn:"Detroit Metropolitan Airport", city:"底特律", cityEn:"Detroit", country:"美国", countryEn:"USA", region:"NA", lat:42.2124, lon:-83.3534, cargo:false },
+  { code:"MSP", icao:"KMSP", name:"明尼阿波利斯-圣保罗国际机场", nameEn:"Minneapolis-Saint Paul Intl", city:"明尼阿波利斯", cityEn:"Minneapolis", country:"美国", countryEn:"USA", region:"NA", lat:44.8820, lon:-93.2218, cargo:false },
+  { code:"DEN", icao:"KDEN", name:"丹佛国际机场", nameEn:"Denver International Airport", city:"丹佛", cityEn:"Denver", country:"美国", countryEn:"USA", region:"NA", lat:39.8561, lon:-104.6737, cargo:false },
+  { code:"PHX", icao:"KPHX", name:"凤凰城天港国际机场", nameEn:"Phoenix Sky Harbor Intl", city:"凤凰城", cityEn:"Phoenix", country:"美国", countryEn:"USA", region:"NA", lat:33.4343, lon:-112.0116, cargo:false },
+  { code:"LAS", icao:"KLAS", name:"拉斯维加斯麦卡伦国际机场", nameEn:"Harry Reid Intl Airport", city:"拉斯维加斯", cityEn:"Las Vegas", country:"美国", countryEn:"USA", region:"NA", lat:36.0840, lon:-115.1537, cargo:false },
+  { code:"CVG", icao:"KCVG", name:"辛辛那提/北肯塔基国际机场", nameEn:"Cincinnati/Northern Kentucky Intl", city:"辛辛那提", cityEn:"Cincinnati", country:"美国", countryEn:"USA", region:"NA", lat:39.0488, lon:-84.6678, cargo:true },
+  { code:"MEM", icao:"KMEM", name:"孟菲斯国际机场", nameEn:"Memphis International Airport", city:"孟菲斯", cityEn:"Memphis", country:"美国", countryEn:"USA", region:"NA", lat:35.0424, lon:-89.9767, cargo:true },
+  { code:"SDF", icao:"KSDF", name:"路易斯维尔穆罕默德·阿里国际机场", nameEn:"Louisville Muhammad Ali Intl", city:"路易斯维尔", cityEn:"Louisville", country:"美国", countryEn:"USA", region:"NA", lat:38.1744, lon:-85.7360, cargo:true },
+  { code:"IND", icao:"KIND", name:"印第安纳波利斯国际机场", nameEn:"Indianapolis International Airport", city:"印第安纳波利斯", cityEn:"Indianapolis", country:"美国", countryEn:"USA", region:"NA", lat:39.7173, lon:-86.2944, cargo:true },
+  { code:"ANC", icao:"PANC", name:"安克雷奇泰德·史蒂文斯国际机场", nameEn:"Ted Stevens Anchorage Intl", city:"安克雷奇", cityEn:"Anchorage", country:"美国", countryEn:"USA", region:"NA", lat:61.1744, lon:-149.9964, cargo:true },
+  { code:"HNL", icao:"PHNL", name:"檀香山丹尼尔·K·井上国际机场", nameEn:"Daniel K. Inouye Intl Airport", city:"檀香山", cityEn:"Honolulu", country:"美国", countryEn:"USA", region:"NA", lat:21.3245, lon:-157.9251, cargo:false },
+  { code:"YYZ", icao:"CYYZ", name:"多伦多皮尔逊国际机场", nameEn:"Toronto Pearson Intl Airport", city:"多伦多", cityEn:"Toronto", country:"加拿大", countryEn:"Canada", region:"NA", lat:43.6777, lon:-79.6248, cargo:true },
+  { code:"YVR", icao:"CYVR", name:"温哥华国际机场", nameEn:"Vancouver International Airport", city:"温哥华", cityEn:"Vancouver", country:"加拿大", countryEn:"Canada", region:"NA", lat:49.1947, lon:-123.1792, cargo:false },
+  { code:"YUL", icao:"CYUL", name:"蒙特利尔特鲁多国际机场", nameEn:"Montréal–Trudeau Intl Airport", city:"蒙特利尔", cityEn:"Montreal", country:"加拿大", countryEn:"Canada", region:"NA", lat:45.4706, lon:-73.7408, cargo:true },
+  { code:"YYC", icao:"CYYC", name:"卡尔加里国际机场", nameEn:"Calgary International Airport", city:"卡尔加里", cityEn:"Calgary", country:"加拿大", countryEn:"Canada", region:"NA", lat:51.1200, lon:-114.0130, cargo:false },
+  { code:"YEG", icao:"CYEG", name:"埃德蒙顿国际机场", nameEn:"Edmonton International Airport", city:"埃德蒙顿", cityEn:"Edmonton", country:"加拿大", countryEn:"Canada", region:"NA", lat:53.3097, lon:-113.5797, cargo:false },
+  { code:"YHZ", icao:"CYHZ", name:"哈利法克斯斯坦菲尔德国际机场", nameEn:"Halifax Stanfield Intl Airport", city:"哈利法克斯", cityEn:"Halifax", country:"加拿大", countryEn:"Canada", region:"NA", lat:44.8808, lon:-63.5086, cargo:false },
+  { code:"MEX", icao:"MMMX", name:"墨西哥城贝尼托·华雷斯机场", nameEn:"Mexico City Intl Airport", city:"墨西哥城", cityEn:"Mexico City", country:"墨西哥", countryEn:"Mexico", region:"NA", lat:19.4363, lon:-99.0721, cargo:true },
+  { code:"GDL", icao:"MMGL", name:"瓜达拉哈拉米格尔·伊达尔戈国际机场", nameEn:"Guadalajara Intl Airport", city:"瓜达拉哈拉", cityEn:"Guadalajara", country:"墨西哥", countryEn:"Mexico", region:"NA", lat:20.5218, lon:-103.3112, cargo:false },
+  { code:"MTY", icao:"MMMY", name:"蒙特雷国际机场", nameEn:"Monterrey International Airport", city:"蒙特雷", cityEn:"Monterrey", country:"墨西哥", countryEn:"Mexico", region:"NA", lat:25.7785, lon:-100.1070, cargo:true },
+
+  // ===== 南美 (SA) =====
+  { code:"GRU", icao:"SBGR", name:"圣保罗瓜鲁柳斯国际机场", nameEn:"São Paulo–Guarulhos Intl", city:"圣保罗", cityEn:"São Paulo", country:"巴西", countryEn:"Brazil", region:"SA", lat:-23.4356, lon:-46.4731, cargo:true },
+  { code:"VCP", icao:"SBKP", name:"坎皮纳斯维拉科波斯国际机场", nameEn:"Viracopos International Airport", city:"坎皮纳斯", cityEn:"Campinas", country:"巴西", countryEn:"Brazil", region:"SA", lat:-23.0074, lon:-47.1345, cargo:true },
+  { code:"GIG", icao:"SBGL", name:"里约热内卢加莱昂国际机场", nameEn:"Rio de Janeiro–Galeão Intl", city:"里约热内卢", cityEn:"Rio de Janeiro", country:"巴西", countryEn:"Brazil", region:"SA", lat:-22.8089, lon:-43.2436, cargo:true },
+  { code:"BSB", icao:"SBBR", name:"巴西利亚国际机场", nameEn:"Brasília International Airport", city:"巴西利亚", cityEn:"Brasília", country:"巴西", countryEn:"Brazil", region:"SA", lat:-15.8711, lon:-47.9186, cargo:false },
+  { code:"EZE", icao:"SAEZ", name:"布宜诺斯艾利斯埃塞萨机场", nameEn:"Ministro Pistarini Intl Airport", city:"布宜诺斯艾利斯", cityEn:"Buenos Aires", country:"阿根廷", countryEn:"Argentina", region:"SA", lat:-34.8222, lon:-58.5358, cargo:true },
+  { code:"BOG", icao:"SKBO", name:"波哥大埃尔多拉多国际机场", nameEn:"El Dorado International Airport", city:"波哥大", cityEn:"Bogotá", country:"哥伦比亚", countryEn:"Colombia", region:"SA", lat:4.7016, lon:-74.1469, cargo:true },
+  { code:"MDE", icao:"SKRG", name:"麦德林何塞·玛丽亚·科尔多瓦机场", nameEn:"José María Córdova Intl", city:"麦德林", cityEn:"Medellín", country:"哥伦比亚", countryEn:"Colombia", region:"SA", lat:6.1645, lon:-75.4231, cargo:false },
+  { code:"LIM", icao:"SPJC", name:"利马豪尔赫·查韦斯国际机场", nameEn:"Jorge Chávez International Airport", city:"利马", cityEn:"Lima", country:"秘鲁", countryEn:"Peru", region:"SA", lat:-12.0219, lon:-77.1143, cargo:false },
+  { code:"SCL", icao:"SCEL", name:"圣地亚哥阿图罗·梅里诺·贝尼特斯机场", nameEn:"Arturo Merino Benítez Intl", city:"圣地亚哥", cityEn:"Santiago", country:"智利", countryEn:"Chile", region:"SA", lat:-33.3930, lon:-70.7858, cargo:false },
+  { code:"UIO", icao:"SEQM", name:"基多苏克雷元帅国际机场", nameEn:"Mariscal Sucre Intl Airport", city:"基多", cityEn:"Quito", country:"厄瓜多尔", countryEn:"Ecuador", region:"SA", lat:-0.1356, lon:-78.3656, cargo:false },
+  { code:"GYE", icao:"SEGU", name:"瓜亚基尔何塞·华金·德·奥尔梅多机场", nameEn:"José Joaquín de Olmedo Intl", city:"瓜亚基尔", cityEn:"Guayaquil", country:"厄瓜多尔", countryEn:"Ecuador", region:"SA", lat:-2.1575, lon:-79.8836, cargo:false },
+  { code:"CCS", icao:"SVMI", name:"加拉加斯西蒙·玻利瓦尔国际机场", nameEn:"Simón Bolívar Intl Airport", city:"加拉加斯", cityEn:"Caracas", country:"委内瑞拉", countryEn:"Venezuela", region:"SA", lat:10.6031, lon:-66.9906, cargo:false },
+  { code:"MVD", icao:"SUMU", name:"蒙得维的亚卡拉斯科国际机场", nameEn:"Carrasco International Airport", city:"蒙得维的亚", cityEn:"Montevideo", country:"乌拉圭", countryEn:"Uruguay", region:"SA", lat:-34.8384, lon:-56.0308, cargo:false },
+  { code:"ASU", icao:"SGAS", name:"亚松森西尔维奥·佩蒂罗西国际机场", nameEn:"Silvio Pettirossi Intl Airport", city:"亚松森", cityEn:"Asunción", country:"巴拉圭", countryEn:"Paraguay", region:"SA", lat:-25.2397, lon:-57.5191, cargo:false },
+
+  // ===== 非洲 (AF) =====
+  { code:"JNB", icao:"FAOR", name:"约翰内斯堡奥利弗·坦博机场", nameEn:"O.R. Tambo International Airport", city:"约翰内斯堡", cityEn:"Johannesburg", country:"南非", countryEn:"South Africa", region:"AF", lat:-26.1367, lon:28.2416, cargo:true },
+  { code:"CPT", icao:"FACT", name:"开普敦国际机场", nameEn:"Cape Town International Airport", city:"开普敦", cityEn:"Cape Town", country:"南非", countryEn:"South Africa", region:"AF", lat:-33.9715, lon:18.6021, cargo:false },
+  { code:"DUR", icao:"FALE", name:"德班沙卡国王国际机场", nameEn:"King Shaka Intl Airport", city:"德班", cityEn:"Durban", country:"南非", countryEn:"South Africa", region:"AF", lat:-29.6144, lon:31.1197, cargo:false },
+  { code:"NBO", icao:"HKJK", name:"内罗毕乔莫·肯雅塔机场", nameEn:"Jomo Kenyatta Intl Airport", city:"内罗毕", cityEn:"Nairobi", country:"肯尼亚", countryEn:"Kenya", region:"AF", lat:-1.3192, lon:36.9278, cargo:true },
+  { code:"ADD", icao:"HAAB", name:"亚的斯亚贝巴博莱机场", nameEn:"Addis Ababa Bole Intl Airport", city:"亚的斯亚贝巴", cityEn:"Addis Ababa", country:"埃塞俄比亚", countryEn:"Ethiopia", region:"AF", lat:8.9779, lon:38.7993, cargo:true },
+  { code:"CAI", icao:"HECA", name:"开罗国际机场", nameEn:"Cairo International Airport", city:"开罗", cityEn:"Cairo", country:"埃及", countryEn:"Egypt", region:"AF", lat:30.1219, lon:31.4056, cargo:true },
+  { code:"ALY", icao:"HEAX", name:"亚历山大博格埃尔阿拉伯机场", nameEn:"Borg El Arab Airport", city:"亚历山大", cityEn:"Alexandria", country:"埃及", countryEn:"Egypt", region:"AF", lat:30.9177, lon:29.6964, cargo:false },
+  { code:"LOS", icao:"DNMM", name:"拉各斯穆尔塔拉·穆罕默德机场", nameEn:"Murtala Muhammed Intl Airport", city:"拉各斯", cityEn:"Lagos", country:"尼日利亚", countryEn:"Nigeria", region:"AF", lat:6.5774, lon:3.3212, cargo:true },
+  { code:"ABV", icao:"DNAA", name:"阿布贾纳姆迪·阿齐基韦国际机场", nameEn:"Nnamdi Azikiwe Intl Airport", city:"阿布贾", cityEn:"Abuja", country:"尼日利亚", countryEn:"Nigeria", region:"AF", lat:9.0068, lon:7.2632, cargo:false },
+  { code:"ACC", icao:"DGAA", name:"阿克拉科托卡国际机场", nameEn:"Kotoka International Airport", city:"阿克拉", cityEn:"Accra", country:"加纳", countryEn:"Ghana", region:"AF", lat:5.6052, lon:-0.1668, cargo:true },
+  { code:"CMN", icao:"GMMN", name:"卡萨布兰卡穆罕默德五世国际机场", nameEn:"Mohammed V International Airport", city:"卡萨布兰卡", cityEn:"Casablanca", country:"摩洛哥", countryEn:"Morocco", region:"AF", lat:33.3675, lon:-7.5900, cargo:true },
+  { code:"TUN", icao:"DTTA", name:"突尼斯迦太基国际机场", nameEn:"Tunis–Carthage Intl Airport", city:"突尼斯", cityEn:"Tunis", country:"突尼斯", countryEn:"Tunisia", region:"AF", lat:36.8510, lon:10.2272, cargo:false },
+  { code:"ALG", icao:"DAAG", name:"阿尔及尔胡阿里·布迈丁机场", nameEn:"Houari Boumediene Airport", city:"阿尔及尔", cityEn:"Algiers", country:"阿尔及利亚", countryEn:"Algeria", region:"AF", lat:36.6940, lon:3.2168, cargo:false },
+  { code:"DSS", icao:"GOBD", name:"达喀尔布莱斯·迪亚涅国际机场", nameEn:"Blaise Diagne Intl Airport", city:"达喀尔", cityEn:"Dakar", country:"塞内加尔", countryEn:"Senegal", region:"AF", lat:14.6711, lon:-17.0733, cargo:false },
+  { code:"EBB", icao:"HUEN", name:"恩德培国际机场", nameEn:"Entebbe International Airport", city:"恩德培", cityEn:"Entebbe", country:"乌干达", countryEn:"Uganda", region:"AF", lat:0.0424, lon:32.4435, cargo:false },
+  { code:"DAR", icao:"HTDA", name:"达累斯萨拉姆朱利叶斯·尼雷尔国际机场", nameEn:"Julius Nyerere Intl Airport", city:"达累斯萨拉姆", cityEn:"Dar es Salaam", country:"坦桑尼亚", countryEn:"Tanzania", region:"AF", lat:-6.8781, lon:39.2026, cargo:false },
+  { code:"LAD", icao:"FNLU", name:"罗安达二月四日国际机场", nameEn:"Quatro de Fevereiro Airport", city:"罗安达", cityEn:"Luanda", country:"安哥拉", countryEn:"Angola", region:"AF", lat:-8.8584, lon:13.2312, cargo:false },
+
+  // ===== 大洋洲 (OC) =====
+  { code:"SYD", icao:"YSSY", name:"悉尼金斯福德·史密斯机场", nameEn:"Sydney Kingsford Smith Airport", city:"悉尼", cityEn:"Sydney", country:"澳大利亚", countryEn:"Australia", region:"OC", lat:-33.9399, lon:151.1753, cargo:true },
+  { code:"MEL", icao:"YMML", name:"墨尔本机场", nameEn:"Melbourne Airport", city:"墨尔本", cityEn:"Melbourne", country:"澳大利亚", countryEn:"Australia", region:"OC", lat:-37.6690, lon:144.8410, cargo:true },
+  { code:"BNE", icao:"YBBN", name:"布里斯班机场", nameEn:"Brisbane Airport", city:"布里斯班", cityEn:"Brisbane", country:"澳大利亚", countryEn:"Australia", region:"OC", lat:-27.3842, lon:153.1175, cargo:false },
+  { code:"PER", icao:"YPPH", name:"珀斯机场", nameEn:"Perth Airport", city:"珀斯", cityEn:"Perth", country:"澳大利亚", countryEn:"Australia", region:"OC", lat:-31.9403, lon:115.9670, cargo:false },
+  { code:"ADL", icao:"YPAD", name:"阿德莱德机场", nameEn:"Adelaide Airport", city:"阿德莱德", cityEn:"Adelaide", country:"澳大利亚", countryEn:"Australia", region:"OC", lat:-34.9450, lon:138.5306, cargo:false },
+  { code:"AKL", icao:"NZAA", name:"奥克兰机场", nameEn:"Auckland Airport", city:"奥克兰", cityEn:"Auckland", country:"新西兰", countryEn:"New Zealand", region:"OC", lat:-37.0082, lon:174.7850, cargo:true },
+  { code:"CHC", icao:"NZCH", name:"基督城国际机场", nameEn:"Christchurch International Airport", city:"基督城", cityEn:"Christchurch", country:"新西兰", countryEn:"New Zealand", region:"OC", lat:-43.4894, lon:172.5322, cargo:false },
+  { code:"WLG", icao:"NZWN", name:"惠灵顿国际机场", nameEn:"Wellington International Airport", city:"惠灵顿", cityEn:"Wellington", country:"新西兰", countryEn:"New Zealand", region:"OC", lat:-41.3272, lon:174.8053, cargo:false },
+  { code:"NAN", icao:"NFFN", name:"楠迪国际机场", nameEn:"Nadi International Airport", city:"楠迪", cityEn:"Nadi", country:"斐济", countryEn:"Fiji", region:"OC", lat:-17.7554, lon:177.4434, cargo:false },
+  { code:"NOU", icao:"NWWW", name:"努美阿拉通图塔国际机场", nameEn:"La Tontouta Intl Airport", city:"努美阿", cityEn:"Nouméa", country:"新喀里多尼亚", countryEn:"New Caledonia", region:"OC", lat:-22.0146, lon:166.2130, cargo:false },
+];
+
+// Deduplicate by code
+const seen = new Set();
+const airportsClean = airports.filter(a => {
+  if (seen.has(a.code)) return false;
+  seen.add(a.code);
+  return true;
+});
+
+// ============ APP STATE ============
+let currentRegion = 'all';
+let searchQuery = '';
+let selectedAirport = null;
+let routeOrigin = null;
+let routeDest = null;
+let map = null;
+let markers = [];
+let routeLineGroup = null;
+let originMarker = null;
+let destMarker = null;
+
+// ============ INIT MAP ============
+function initMap() {
+  map = L.map('map').setView([30, 25], 2);
+
+  // 主瓦片源：CartoDB Positron（轻量、全球可用、中国大陆友好）
+  const cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+  });
+
+  // 备用瓦片源：ESRI World Street Map（全球覆盖，稳定可靠）
+  const esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri',
+    maxZoom: 18
+  });
+
+  cartoLayer.addTo(map);
+
+  // 瓦片加载失败自动切换备用源
+  cartoLayer.on('tileerror', function(e) {
+    if (map.hasLayer(cartoLayer)) {
+      map.removeLayer(cartoLayer);
+      esriLayer.addTo(map);
+      console.log('CartoDB 瓦片加载失败，已切换到 ESRI 备用源');
+    }
+  });
+  routeLineGroup = L.layerGroup().addTo(map);
+  updateMapMarkers();
+}
+
+// ============ FILTER & SEARCH ============
+function getFilteredAirports() {
+  return airportsClean.filter(a => {
+    if (currentRegion !== 'all' && a.region !== currentRegion) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return a.code.toLowerCase().includes(q) ||
+             (a.icao && a.icao.toLowerCase().includes(q)) ||
+             a.name.includes(q) ||
+             a.nameEn.toLowerCase().includes(q) ||
+             a.city.includes(q) ||
+             a.cityEn.toLowerCase().includes(q) ||
+             a.country.includes(q) ||
+             a.countryEn.toLowerCase().includes(q);
+    }
+    return true;
+  });
+}
+
+// ============ RENDER LIST ============
+function renderList() {
+  const filtered = getFilteredAirports();
+  const list = document.getElementById('airportList');
+  const totalCount = document.getElementById('totalCount');
+  const filteredCount = document.getElementById('filteredCount');
+  const listCount = document.getElementById('listCount');
+
+  totalCount.textContent = airportsClean.length;
+  filteredCount.textContent = filtered.length;
+  listCount.textContent = filtered.length + ' 个结果';
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#94a3b8;">没有找到匹配的机场</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(a => {
+    const cls = selectedAirport && selectedAirport.code === a.code ? 'active' : '';
+    const isOrigin = routeOrigin && routeOrigin.code === a.code;
+    const isDest = routeDest && routeDest.code === a.code;
+    return `
+      <div class="airport-item ${cls}" onclick="selectAirport('${a.code}')" data-code="${a.code}">
+        <div class="code-badge" style="${isOrigin ? 'background:#f59e0b' : ''}${isDest ? 'background:#ef4444' : ''}">${a.code}</div>
+        <div class="info">
+          <div class="name">${a.name}</div>
+          <div class="meta">${a.icao || ''} · ${a.city} · ${a.country}</div>
+        </div>
+        <div class="route-btn" onclick="event.stopPropagation();setRoutePoint('${a.code}')" title="点击设为航线端点">🛫 航线</div>
+        <span class="region-tag region-${a.region.toLowerCase()}">${getRegionLabel(a.region)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function getRegionLabel(region) {
+  const m = { CN:'中国', EU:'欧洲', AS:'亚洲', NA:'北美', SA:'南美', ME:'中东', AF:'非洲', OC:'大洋洲', CA:'中亚' };
+  return m[region] || region;
+}
+
+// ============ SELECT AIRPORT ============
+function selectAirport(code) {
+  const airport = airportsClean.find(a => a.code === code);
+  if (!airport) return;
+  selectedAirport = airport;
+  renderList();
+  renderDetail(airport);
+  focusMap(airport);
+}
+
+// ============ RENDER DETAIL ============
+function renderDetail(airport) {
+  const card = document.getElementById('detailCard');
+  card.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-code">${airport.code}</div>
+      <div class="detail-title">
+        <h2>${airport.name}</h2>
+        <div class="sub">${airport.nameEn} · <span class="badge-icao">${airport.icao || 'N/A'}</span></div>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-item">
+        <div class="key">IATA 三字码</div>
+        <div class="val">${airport.code}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">ICAO 四字码</div>
+        <div class="val">${airport.icao || '—'}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">城市 / City</div>
+        <div class="val">${airport.city} / ${airport.cityEn}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">国家 / Country</div>
+        <div class="val">${airport.country} / ${airport.countryEn}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">区域 / Region</div>
+        <div class="val">${getRegionLabel(airport.region)}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">货运枢纽</div>
+        <div class="val">${airport.cargo ? '✅ 是' : '—'}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key">坐标</div>
+        <div class="val">${airport.lat.toFixed(4)}, ${airport.lon.toFixed(4)}</div>
+      </div>
+      <div class="detail-item">
+        <div class="key"></div>
+        <div class="val">
+          <button class="btn-sm" onclick="setRoutePoint('${airport.code}')" style="color:var(--accent-dark);border-color:var(--accent);">🛫 设为航线端点</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ MAP FUNCTIONS ============
+function updateMapMarkers() {
+  if (!map) return;
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  // Remove old route markers
+  if (originMarker) { map.removeLayer(originMarker); originMarker = null; }
+  if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+
+  const filtered = getFilteredAirports();
+
+  filtered.forEach(a => {
+    const isSelected = selectedAirport && selectedAirport.code === a.code;
+    const isOrigin = routeOrigin && routeOrigin.code === a.code;
+    const isDest = routeDest && routeDest.code === a.code;
+    let bg = a.cargo ? '#1a56db' : '#94a3b8';
+    if (isDest) bg = '#ef4444';
+    else if (isOrigin) bg = '#f59e0b';
+    else if (isSelected) bg = '#f59e0b';
+
+    const icon = L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="
+        background:${bg};color:#fff;font-size:10px;font-weight:700;
+        padding:2px 6px;border-radius:4px;white-space:nowrap;
+        border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.35);
+        cursor:pointer;transform:translate(-50%,-100%);
+      ">${a.code}</div>`,
+      iconSize: [0, 0], iconAnchor: [0, 0]
+    });
+    const marker = L.marker([a.lat, a.lon], { icon }).addTo(map);
+    marker.on('click', () => selectAirport(a.code));
+    marker.bindTooltip(`${a.code} — ${a.city}, ${a.country}`, { direction:'top', offset:[0,-20] });
+    markers.push(marker);
+  });
+
+  // Draw route origin/dest markers with airplane icon
+  if (routeOrigin) {
+    originMarker = L.marker([routeOrigin.lat, routeOrigin.lon], {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="background:#f59e0b;color:#fff;font-size:18px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.4);">🛫</div>',
+        iconSize: [30,30], iconAnchor: [15,15]
+      })
+    }).addTo(map);
+    originMarker.bindTooltip(`🛫 起点: ${routeOrigin.code} ${routeOrigin.city}`, { permanent:true, direction:'top', offset:[0,-18] });
+  }
+  if (routeDest) {
+    destMarker = L.marker([routeDest.lat, routeDest.lon], {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="background:#ef4444;color:#fff;font-size:18px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.4);">📍</div>',
+        iconSize: [30,30], iconAnchor: [15,15]
+      })
+    }).addTo(map);
+    destMarker.bindTooltip(`📍 终点: ${routeDest.code} ${routeDest.city}`, { permanent:true, direction:'top', offset:[0,-18] });
+  }
+}
+
+function focusMap(airport) {
+  if (!map) return;
+  // If route exists, fit to both
+  if (routeOrigin && routeDest) {
+    map.fitBounds([[routeOrigin.lat, routeOrigin.lon], [routeDest.lat, routeDest.lon]], { padding: [60,60], maxZoom: 8 });
+  } else {
+    map.setView([airport.lat, airport.lon], 8, { animate: true, duration: 0.6 });
+  }
+  updateMapMarkers();
+}
+
+// ============ ROUTE DRAWING ============
+function drawRouteLine() {
+  if (!routeLineGroup) return;
+  routeLineGroup.clearLayers();
+  if (!routeOrigin || !routeDest) {
+    updateMapMarkers();
+    return;
+  }
+
+  // Create great-circle polyline
+  const latlngs = createGreatCircleLine(
+    [routeOrigin.lat, routeOrigin.lon],
+    [routeDest.lat, routeDest.lon],
+    100
+  );
+
+  // Draw route line
+  const routeLine = L.polyline(latlngs, {
+    color: '#f59e0b',
+    weight: 4,
+    opacity: 0.9,
+    className: 'route-line'
+  }).addTo(routeLineGroup);
+
+  // Animate flowing dots along the line
+  let dashOffset = 0;
+  if (window.__routeAnimInterval) clearInterval(window.__routeAnimInterval);
+  window.__routeAnimInterval = setInterval(() => {
+    dashOffset -= 1.2;
+    if (routeLine._path) {
+      routeLine._path.style.strokeDasharray = '8 12';
+      routeLine._path.style.strokeDashoffset = dashOffset;
+    }
+  }, 50);
+
+  // Calculate distance
+  const dist = haversine(routeOrigin.lat, routeOrigin.lon, routeDest.lat, routeDest.lon);
+  const distNm = (dist * 0.539957).toFixed(0);
+
+  document.getElementById('routeDistance').textContent =
+    `${dist.toFixed(0)} km / ${distNm} NM`;
+
+  updateMapMarkers();
+
+  // Fit map to show both
+  setTimeout(() => {
+    map.fitBounds([[routeOrigin.lat, routeOrigin.lon], [routeDest.lat, routeDest.lon]],
+      { padding: [80,80], maxZoom: 6, animate: true });
+  }, 200);
+}
+
+function createGreatCircleLine(start, end, numPoints) {
+  const [lat1, lon1] = [start[0] * Math.PI / 180, start[1] * Math.PI / 180];
+  const [lat2, lon2] = [end[0] * Math.PI / 180, end[1] * Math.PI / 180];
+  const points = [];
+  for (let i = 0; i <= numPoints; i++) {
+    const f = i / numPoints;
+    const d = 2 * Math.asin(Math.sqrt(
+      Math.pow(Math.sin((lat2 - lat1) / 2), 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin((lon2 - lon1) / 2), 2)
+    ));
+    if (d < 1e-10) {
+      points.push([start[0], start[1]]);
+      continue;
+    }
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2);
+    const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2);
+    const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+    const lat = Math.atan2(z, Math.sqrt(x * x + y * y)) * 180 / Math.PI;
+    const lon = Math.atan2(y, x) * 180 / Math.PI;
+    points.push([lat, lon]);
+  }
+  return points;
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ============ ROUTE POINT MANAGEMENT ============
+function setRoutePoint(code) {
+  const airport = airportsClean.find(a => a.code === code);
+  if (!airport) return;
+
+  if (!routeOrigin) {
+    routeOrigin = airport;
+    routeDest = null;
+    document.getElementById('routeOrigin').innerHTML = '🛫 ' + airport.code + ' <small style="color:#475569">' + airport.city + '</small> <span class="remove" onclick="event.stopPropagation();clearRoute()" title="清除航线">✕</span>';
+    document.getElementById('routeDest').innerHTML = '终<span style="color:#94a3b8">点击机场的「航线」按钮</span>';
+    document.getElementById('routeDistance').textContent = '';
+    selectAirport(code);
+    drawRouteLine();
+  } else if (!routeDest && routeOrigin.code !== airport.code) {
+    routeDest = airport;
+    document.getElementById('routeDest').innerHTML = '📍 ' + airport.code + ' <small style="color:#475569">' + airport.city + '</small> <span class="remove" onclick="event.stopPropagation();clearRoute()" title="清除航线">✕</span>';
+    selectAirport(code);
+    drawRouteLine();
+  } else if (routeOrigin.code === airport.code) {
+    // Re-clicking origin: clear
+    clearRoute();
+  } else {
+    // Already have both — reset with new origin
+    routeOrigin = airport;
+    routeDest = null;
+    document.getElementById('routeOrigin').innerHTML = '🛫 ' + airport.code + ' <small style="color:#475569">' + airport.city + '</small> <span class="remove" onclick="event.stopPropagation();clearRoute()" title="清除航线">✕</span>';
+    document.getElementById('routeDest').innerHTML = '终<span style="color:#94a3b8">点击机场的「航线」按钮</span>';
+    document.getElementById('routeDistance').textContent = '';
+    selectAirport(code);
+    drawRouteLine();
+  }
+
+  // Hide map hint once user has drawn a route
+  if (routeOrigin && routeDest) {
+    document.getElementById('mapHint').style.display = 'none';
+  }
+}
+
+function clearRoute() {
+  routeOrigin = null;
+  routeDest = null;
+  if (window.__routeAnimInterval) { clearInterval(window.__routeAnimInterval); window.__routeAnimInterval = null; }
+  if (routeLineGroup) routeLineGroup.clearLayers();
+  if (originMarker) { map.removeLayer(originMarker); originMarker = null; }
+  if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+  document.getElementById('routeOrigin').innerHTML = '起<span style="color:#94a3b8">点击机场设为起点</span>';
+  document.getElementById('routeDest').innerHTML = '终<span style="color:#94a3b8">点击机场设为终点</span>';
+  document.getElementById('routeDistance').textContent = '';
+  document.getElementById('mapHint').style.display = 'block';
+  updateMapMarkers();
+  renderList();
+}
+
+// ============ EVENT LISTENERS ============
+document.getElementById('searchInput').addEventListener('input', function(e) {
+  searchQuery = e.target.value;
+  selectedAirport = null;
+  renderList();
+  updateMapMarkers();
+  document.getElementById('detailCard').innerHTML = `
+    <div class="detail-empty">
+      <div class="icon">📍</div>
+      <div>点击左侧列表中的机场查看详细信息<br><small style="color:#94a3b8">也可使用「航线」按钮绘制航线连线</small></div>
+    </div>
+  `;
+});
+
+document.getElementById('regionTags').addEventListener('click', function(e) {
+  if (e.target.classList.contains('tag')) {
+    this.querySelectorAll('.tag').forEach(t => t.classList.remove('active'));
+    e.target.classList.add('active');
+    currentRegion = e.target.dataset.region;
+    selectedAirport = null;
+    renderList();
+    updateMapMarkers();
+    document.getElementById('detailCard').innerHTML = `
+      <div class="detail-empty">
+        <div class="icon">📍</div>
+        <div>点击左侧列表中的机场查看详细信息<br><small style="color:#94a3b8">也可使用「航线」按钮绘制航线连线</small></div>
+      </div>
+    `;
+    const filtered = getFilteredAirports();
+    if (filtered.length > 0 && map && !routeOrigin) {
+      const bounds = filtered.map(a => [a.lat, a.lon]);
+      map.fitBounds(bounds, { padding: [40,40], maxZoom: 6 });
+    }
+  }
+});
+
+// ============ BOOT ============
+document.addEventListener('DOMContentLoaded', function() {
+  renderList();
+  initMap();
+  setTimeout(() => {
+    if (map) {
+      map.invalidateSize();
+      map.on('zoomend', updateMapMarkers);
+      map.on('moveend', updateMapMarkers);
+    }
+  }, 200);
+
+  // Escape 键清除航线
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && (routeOrigin || routeDest)) {
+      clearRoute();
+    }
+  });
+});
+</script>
+</body>
+</html>
